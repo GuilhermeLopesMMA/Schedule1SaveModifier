@@ -1,0 +1,2429 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schedule I, editor de saves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --bg: #E4E8E6; --panel: #F5F7F6; --panel-2: #EAEEEC; --line: #CBD3CF; --line-strong: #AEB8B3;
+  --ink: #131819; --muted: #566165; --money: #22863A; --accent: #22863A; --accent-ink: #FFFFFF;
+  --accent-soft: rgb(34 134 58 / .12); --warn: #94690B; --danger: #B03A26; --info: #2A6CB0; --focus: #1E5BC6;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --sans: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --top: 76px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1113; --panel: #161A1D; --panel-2: #1C2125; --line: #283036; --line-strong: #3A444B;
+    --ink: #E5EAE7; --muted: #8A959A; --money: #46CB4F; --accent: #46CB4F; --accent-ink: #06150A;
+    --accent-soft: rgb(70 203 79 / .13); --warn: #E3B03B; --danger: #E5573F; --info: #6FA8E8; --focus: #86B6FF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1113; --panel: #161A1D; --panel-2: #1C2125; --line: #283036; --line-strong: #3A444B;
+  --ink: #E5EAE7; --muted: #8A959A; --money: #46CB4F; --accent: #46CB4F; --accent-ink: #06150A;
+  --accent-soft: rgb(70 203 79 / .13); --warn: #E3B03B; --danger: #E5573F; --info: #6FA8E8; --focus: #86B6FF; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+.money { color: var(--money); font-variant-numeric: tabular-nums; }
+.num-tab { font-variant-numeric: tabular-nums; }
+svg.ico { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- entrada ---------- */
+#empty { min-height: 100vh; display: grid; align-content: center; justify-items: center; padding: 40px 20px; }
+.intro { width: 100%; max-width: 820px; }
+.logo { font-family: var(--display); font-weight: 700; font-size: clamp(56px, 11vw, 116px); line-height: .82; letter-spacing: .01em; margin: 0; }
+.logo-sub { display: flex; align-items: center; gap: 14px; margin: 14px 0 34px; color: var(--muted); font-family: var(--display); font-size: 22px; font-weight: 500; }
+.logo-sub::before { content: ""; width: 44px; height: 3px; background: var(--money); }
+.flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 18px; background: var(--panel); }
+.flow li { list-style: none; padding: 16px 18px; border-right: 1px solid var(--line); }
+.flow li:last-child { border-right: 0; }
+.flow b { font-family: var(--display); font-size: 20px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; }
+.flow b span { color: var(--money); font-variant-numeric: tabular-nums; }
+.flow p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.flow { padding: 0; }
+.drop { border: 1.5px dashed var(--line-strong); border-radius: 10px; padding: 26px; display: grid; gap: 14px; justify-items: start; transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--money); background: var(--accent-soft); }
+.drop h2 { font-family: var(--display); font-weight: 600; font-size: 26px; margin: 0; line-height: 1.1; }
+.drop p { margin: 0; color: var(--muted); max-width: 60ch; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.fine { margin-top: 18px; color: var(--muted); font-size: 13.5px; max-width: 70ch; }
+.fine code { font-family: var(--mono); font-size: 12px; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--ink); overflow-wrap: anywhere; }
+@media (max-width: 700px) { .flow { grid-template-columns: 1fr; } .flow li { border-right: 0; border-bottom: 1px solid var(--line); } .flow li:last-child { border-bottom: 0; } }
+
+/* ---------- botões ---------- */
+.btn { border: 1px solid var(--line-strong); background: var(--panel); padding: 7px 14px; border-radius: 7px; cursor: pointer; font-weight: 500; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+a.btn, a.btn:visited { color: var(--ink); }
+.btn:hover { border-color: var(--ink); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.small { padding: 4px 10px; font-size: 13.5px; }
+.btn.danger { color: var(--danger); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.icon-btn { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 5px 8px; border-radius: 6px; font-size: 17px; line-height: 1; }
+.icon-btn:hover { background: var(--panel-2); color: var(--danger); }
+
+/* ---------- HUD ---------- */
+.hud { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 10px 22px; display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1; padding-right: 18px; border-right: 1px solid var(--line); white-space: nowrap; }
+.brand small { display: block; font-weight: 500; font-size: 12.5px; color: var(--muted); font-family: var(--sans); margin-top: 3px; }
+.org { min-width: 0; flex: 1 1 200px; }
+.org h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 28px; line-height: 1.05; overflow-wrap: anywhere; }
+.org small { color: var(--muted); font-size: 13px; }
+.hud-stats { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; }
+.hstat small { display: block; color: var(--muted); font-size: 12px; line-height: 1.2; }
+.hstat b { font-family: var(--display); font-size: 24px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rankchip { display: inline-flex; align-items: center; gap: 8px; }
+.rankchip i { font-style: normal; font-size: 12px; font-weight: 600; border: 1px solid var(--line-strong); border-radius: 4px; padding: 0 6px; font-family: var(--sans); color: var(--muted); }
+.hud-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.pending { color: var(--warn); font-weight: 600; font-size: 13.5px; background: transparent; border: 0; cursor: pointer; padding: 4px 6px; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- layout ---------- */
+.app { display: grid; grid-template-columns: 224px minmax(0, 1fr); }
+.rail { position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow: auto; border-right: 1px solid var(--line); padding: 16px 10px 24px; display: flex; flex-direction: column; gap: 1px; }
+.rail .group { font-size: 12px; color: var(--muted); padding: 14px 12px 4px; }
+.rail .group:first-child { padding-top: 0; }
+.rail button { text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 500; }
+.rail button .tile { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-2); color: var(--muted); flex: none; }
+.rail button .lbl { flex: 1; }
+.rail button .count { font-size: 12px; font-variant-numeric: tabular-nums; }
+.rail button:hover { color: var(--ink); background: var(--panel); }
+.rail button[aria-current="true"] { color: var(--ink); background: var(--panel); font-weight: 600; }
+.rail button[aria-current="true"] .tile { background: var(--accent); color: var(--accent-ink); }
+main { padding: 24px 30px 90px; min-width: 0; }
+.vh { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; margin-bottom: 20px; }
+.vh h2 { font-family: var(--display); font-size: 36px; font-weight: 600; margin: 0; line-height: 1; }
+.vh p { margin: 6px 0 0; color: var(--muted); max-width: 72ch; }
+@media (max-width: 860px) {
+  .hud { position: static; padding: 10px 14px; }
+  .brand { display: none; }
+  .hud-actions { margin-left: 0; }
+  .app { grid-template-columns: 1fr; }
+  .rail { position: sticky; top: 0; z-index: 9; height: auto; flex-direction: row; overflow-x: auto; background: var(--bg); border-right: 0; border-bottom: 1px solid var(--line); padding: 8px; }
+  .rail .group { display: none; }
+  .rail button { flex: none; padding: 6px 10px 6px 6px; }
+  .rail button .count { display: none; }
+  main { padding: 18px 14px 70px; }
+}
+
+/* ---------- painéis ---------- */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; }
+.panel > header { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.panel > header h3 { margin: 0; font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.1; }
+.panel > header .sp { flex: 1; }
+.panel > .body { padding: 16px 18px; }
+.panel.flat > .body { padding: 0; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.cols > .panel { margin-bottom: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px 18px; }
+.fld { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.fld > span { font-size: 13px; color: var(--muted); }
+.fld small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+input[type=text], input[type=number], input[type=time], input[type=search], input:not([type]), select, textarea {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; width: 100%;
+}
+input[type=text], input[type=number], input[type=time], input[type=search], select { height: 36px; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type=number] { font-variant-numeric: tabular-nums; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; flex: none; }
+input[type=range] { accent-color: var(--accent); width: 100%; }
+.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 4px; background: var(--panel-2); color: var(--muted); white-space: nowrap; border: 1px solid var(--line); }
+.tag.ok { color: var(--money); border-color: color-mix(in srgb, var(--money) 40%, transparent); background: var(--accent-soft); }
+.tag.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.tag.info { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, transparent); background: color-mix(in srgb, var(--info) 12%, transparent); }
+.tag.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.note { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.rel { display: grid; grid-template-columns: minmax(90px, 150px) 42px; gap: 8px; align-items: center; }
+.rel output { font-variant-numeric: tabular-nums; font-size: 13px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.toolbar input, .toolbar select { width: auto; }
+.toolbar .grow { flex: 1 1 220px; }
+
+/* ---------- slots ---------- */
+.slots { display: grid; gap: 6px; }
+.slot { display: grid; grid-template-columns: 24px minmax(140px, 1.6fr) 92px minmax(100px, .9fr) minmax(90px, .8fr) 32px; gap: 8px; align-items: center; }
+.slot .n { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; }
+.slot.empty input.mono { color: var(--muted); }
+.slot-head { font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) {
+  .slot { grid-template-columns: 20px 1fr 78px 30px; }
+  .slot > span:empty { display: none; }
+  .slot > :nth-child(4), .slot > :nth-child(5) { grid-column: 2 / span 2; }
+  .slot > :nth-child(6) { grid-column: 4; grid-row: 1; }
+  .slot-head { display: none; }
+}
+details.store { border-top: 1px solid var(--line); }
+details.store:first-child { border-top: 0; }
+details.store summary { cursor: pointer; display: flex; gap: 12px; align-items: baseline; padding: 10px 18px; list-style: none; }
+details.store summary::-webkit-details-marker { display: none; }
+details.store summary::before { content: "+"; font-family: var(--mono); color: var(--muted); width: 12px; }
+details.store[open] summary::before { content: "−"; }
+details.store .slots { padding: 2px 18px 14px 42px; }
+
+/* ---------- tabelas ---------- */
+.table-wrap { overflow-x: auto; }
+.panel.flat .table-wrap { border-radius: 0 0 10px 10px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; background: var(--panel-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.name { font-weight: 600; white-space: nowrap; }
+td .chips { flex-wrap: nowrap; white-space: nowrap; }
+.fx { display: flex; flex-wrap: wrap; gap: 4px; max-width: 360px; }
+
+/* ---------- jogadores ---------- */
+.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pcard { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; text-align: left; }
+.pcard[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.avatar { width: 64px; height: 64px; border-radius: 6px; overflow: hidden; background: var(--panel-2); display: block; }
+.avatar img, .avatar svg { width: 100%; height: 100%; display: block; object-fit: cover; }
+.avatar.big { width: 112px; height: 112px; }
+.pcard .pname { display: block; margin: 0; font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+.pcard .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.identity { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 520px) { .identity { grid-template-columns: 1fr; } }
+.paste { border: 1.5px dashed var(--line-strong); border-radius: 8px; padding: 12px; color: var(--muted); font-size: 13.5px; }
+.paste.over { border-color: var(--money); background: var(--accent-soft); }
+
+/* ---------- ferramentas ---------- */
+.tools { display: grid; }
+.tool { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: center; padding: 13px 18px; border-top: 1px solid var(--line); }
+.tool:first-child { border-top: 0; }
+.tool b { font-weight: 600; }
+.tool p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+.tool .act { display: flex; gap: 8px; align-items: center; justify-content: end; flex-wrap: wrap; }
+.tool .act input { width: 120px; }
+@media (max-width: 640px) { .tool { grid-template-columns: 1fr; } .tool .act { justify-content: start; } }
+
+/* ---------- alterações ---------- */
+.diff-file { border-top: 1px solid var(--line); }
+.diff-file:first-child { border-top: 0; }
+.diff-file > h4 { margin: 0; padding: 10px 18px; font-family: var(--mono); font-size: 13px; font-weight: 500; display: flex; gap: 10px; align-items: center; background: var(--panel-2); }
+.diff-row { display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 6px 18px; border-top: 1px solid var(--line); font-size: 13px; }
+.diff-row .path { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; color: var(--muted); }
+.diff-row .from { color: var(--danger); overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.diff-row .to { color: var(--money); overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
+@media (max-width: 640px) { .diff-row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ---------- ficheiros ---------- */
+.files { display: grid; grid-template-columns: minmax(200px, 270px) minmax(0, 1fr); gap: 14px; }
+.file-list { display: grid; gap: 1px; align-content: start; max-height: 72vh; overflow: auto; padding: 8px; }
+.file-list button { text-align: left; border: 0; background: transparent; padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 12px; }
+.file-list button:hover { background: var(--panel-2); }
+.file-list button[aria-current="true"] { background: var(--accent-soft); color: var(--ink); }
+.file-list .sz { color: var(--muted); }
+textarea.raw { font-family: var(--mono); font-size: 12.5px; min-height: 62vh; resize: vertical; white-space: pre; border: 0; border-radius: 0 0 10px 10px; }
+.err { color: var(--danger); font-size: 13.5px; }
+mark { background: var(--accent-soft); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+@media (max-width: 860px) { .files { grid-template-columns: 1fr; } .file-list { max-height: 220px; } }
+
+/* ---------- toast / modal ---------- */
+#toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(16px); opacity: 0; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; transition: .18s; pointer-events: none; z-index: 40; max-width: calc(100vw - 32px); font-weight: 500; }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / .55); display: grid; place-items: center; z-index: 30; padding: 16px; }
+.modal .box { background: var(--panel); border-radius: 12px; width: 100%; max-width: 520px; border: 1px solid var(--line); max-height: calc(100vh - 32px); overflow: auto; }
+.modal .box > header { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; }
+.modal .box > header h3 { margin: 0; flex: 1; font-family: var(--display); font-size: 22px; font-weight: 600; }
+.modal .box > .body { padding: 16px 18px; display: grid; gap: 14px; }
+.modal .box > footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: end; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<section id="empty">
+  <div class="intro">
+    <h1 class="logo">SCHEDULE I</h1>
+    <div class="logo-sub">Editor de saves</div>
+    <ol class="flow">
+      <li><b><span>1</span>Exportar</b><p>No menu principal, carrega em Continuar e usa Exportar no save que queres. O jogo gera um .zip.</p></li>
+      <li><b><span>2</span>Editar</b><p>Abre esse .zip aqui. Tudo acontece no teu browser, o save não sai do teu computador.</p></li>
+      <li><b><span>3</span>Importar</b><p>Descarrega o .zip editado e usa Importar no mesmo menu do jogo.</p></li>
+    </ol>
+    <div class="drop" id="drop">
+      <h2>Arrasta o .zip exportado para aqui</h2>
+      <p>Também aceita a pasta SaveGame_N diretamente, se preferires ir buscá-la ao disco.</p>
+      <div class="row">
+        <button class="btn primary" id="pickZip">Abrir .zip</button>
+        <button class="btn" id="pickDir">Abrir pasta</button>
+      </div>
+      <span class="err" id="loadErr" hidden></span>
+      <input type="file" id="zipInput" accept=".zip,application/zip" hidden>
+      <input type="file" id="dirInput" webkitdirectory directory multiple hidden>
+    </div>
+    <p class="fine">Guarda sempre o .zip original como cópia de segurança. Se preferires a pasta, os saves estão em <code>%USERPROFILE%\AppData\LocalLow\TVGS\Schedule I\Saves\</code>, e o jogo tem de estar fechado.</p>
+  </div>
+</section>
+
+<div id="editor" hidden>
+  <header class="hud" id="hud">
+    <div class="brand">SCHEDULE I<small>Editor de saves</small></div>
+    <div class="org"><h1 id="orgName">Organização</h1><small id="saveName"></small></div>
+    <div class="hud-stats" id="stats"></div>
+    <div class="hud-actions">
+      <button class="pending" id="pending" hidden></button>
+      <button class="btn small" id="closeBtn">Fechar save</button>
+      <button class="btn primary" id="exportBtn">Descarregar para importar</button>
+    </div>
+  </header>
+  <div class="app">
+    <nav class="rail" id="rail" aria-label="Secções"></nav>
+    <main id="view"></main>
+  </div>
+</div>
+
+<datalist id="dl-items"></datalist>
+<datalist id="dl-colors"></datalist>
+<datalist id="dl-avatar"></datalist>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// ---- JSON compatível com o JsonUtility do Unity ----
+// Guarda quais números eram floats (tinham "." ou expoente) para os reescrever com ".0".
+const FLOATS = new WeakMap();
+function markFloat(obj, key) {
+  let s = FLOATS.get(obj);
+  if (!s) { s = new Set(); FLOATS.set(obj, s); }
+  s.add(key);
+}
+function isFloat(obj, key) {
+  const s = FLOATS.get(obj);
+  return !!(s && s.has(key));
+}
+function setFloat(obj, key, v) { markFloat(obj, key); obj[key] = v; }
+
+function parseJSON(text) {
+  let i = 0;
+  const n = text.length;
+  if (text.charCodeAt(0) === 0xfeff) i = 1;
+  const numRe = /-?\d+(\.\d+)?([eE][+-]?\d+)?/y;
+  function fail(msg) { throw new SyntaxError((msg || "JSON inválido") + " (posição " + i + ")"); }
+  function ws() {
+    while (i < n) {
+      const c = text.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) i++; else break;
+    }
+  }
+  function str() {
+    if (text[i] !== '"') fail("Esperava uma string");
+    let j = i + 1;
+    while (j < n) {
+      const ch = text.charCodeAt(j);
+      if (ch === 92) j += 2; else if (ch === 34) break; else j++;
+    }
+    if (j >= n) fail("String sem fim");
+    const s = JSON.parse(text.slice(i, j + 1));
+    i = j + 1;
+    return s;
+  }
+  function val(parent, key) {
+    ws();
+    const c = text[i];
+    if (c === "{") {
+      i++;
+      const o = {};
+      ws();
+      if (text[i] === "}") { i++; return o; }
+      for (;;) {
+        ws();
+        const k = str();
+        ws();
+        if (text[i++] !== ":") fail("Esperava ':'");
+        o[k] = val(o, k);
+        ws();
+        const d = text[i++];
+        if (d === "}") break;
+        if (d !== ",") fail("Esperava ',' ou '}'");
+      }
+      return o;
+    }
+    if (c === "[") {
+      i++;
+      const a = [];
+      ws();
+      if (text[i] === "]") { i++; return a; }
+      for (;;) {
+        const idx = a.length;
+        a.push(null);
+        a[idx] = val(a, idx);
+        ws();
+        const d = text[i++];
+        if (d === "]") break;
+        if (d !== ",") fail("Esperava ',' ou ']'");
+      }
+      return a;
+    }
+    if (c === '"') return str();
+    if (text.startsWith("true", i)) { i += 4; return true; }
+    if (text.startsWith("false", i)) { i += 5; return false; }
+    if (text.startsWith("null", i)) { i += 4; return null; }
+    numRe.lastIndex = i;
+    const m = numRe.exec(text);
+    if (!m) fail("Valor inesperado");
+    i = numRe.lastIndex;
+    if ((m[1] || m[2]) && parent !== undefined) markFloat(parent, key);
+    return Number(m[0]);
+  }
+  const out = val(undefined, undefined);
+  ws();
+  if (i < n) fail("Texto a mais depois do JSON");
+  return out;
+}
+
+function numStr(v, f) {
+  if (typeof v !== "number" || !isFinite(v)) v = 0;
+  let s = String(v);
+  if (f && !/[.eE]/.test(s)) s += ".0";
+  return s;
+}
+
+function stringify(v, pretty) { return ser(v, !!pretty, "", undefined, undefined); }
+function ser(v, pretty, ind, parent, key) {
+  if (v === null || v === undefined) return "null";
+  switch (typeof v) {
+    case "number": return numStr(v, parent !== undefined && isFloat(parent, key));
+    case "boolean": return v ? "true" : "false";
+    case "string": return JSON.stringify(v);
+  }
+  const ni = ind + "    ";
+  if (Array.isArray(v)) {
+    if (!v.length) return "[]";
+    const parts = v.map((x, k) => ser(x, pretty, ni, v, k));
+    return pretty ? "[\n" + parts.map((p) => ni + p).join(",\n") + "\n" + ind + "]" : "[" + parts.join(",") + "]";
+  }
+  const ks = Object.keys(v);
+  if (!ks.length) return "{}";
+  const parts = ks.map((k) => JSON.stringify(k) + (pretty ? ": " : ":") + ser(v[k], pretty, ni, v, k));
+  return pretty ? "{\n" + parts.map((p) => ni + p).join(",\n") + "\n" + ind + "}" : "{" + parts.join(",") + "}";
+}
+
+// cópia profunda que mantém a marcação de floats
+function clone(v) { return parseJSON(stringify(v, false)); }
+
+
+
+</script>
+<script>
+"use strict";
+// ================= constantes =================
+const RANKS = ["Street Rat", "Hoodlum", "Peddler", "Hustler", "Bagman", "Enforcer", "Shot Caller", "Block Boss", "Underlord", "Baron", "Kingpin"];
+const ROMAN = ["0", "I", "II", "III", "IV", "V"];
+const REGIONS = ["Northtown", "Westville", "Downtown", "Docks", "Suburbia", "Uptown"];
+const QUALITIES = ["Trash", "Poor", "Standard", "Premium", "Heavenly"];
+const PACKAGING = [["", "Solto"], ["baggie", "Saqueta"], ["jar", "Frasco"], ["brick", "Tijolo"]];
+const DRUG = { 0: ["Erva", "WeedData"], 1: ["Meth", "MethData"], 2: ["Cocaína", "CocaineData"], 4: ["Cogumelos", "ShroomData"] };
+const BASE_PRODUCTS = {
+  ogkush: ["OG Kush", 0], sourdiesel: ["Sour Diesel", 0], greencrack: ["Green Crack", 0],
+  granddaddypurple: ["Granddaddy Purple", 0], meth: ["Meth", 1], cocaine: ["Cocaine", 2], shroom: ["Shroom", 4],
+};
+const QUEST_STATES = ["Inativa", "Ativa", "Concluída", "Falhada", "Expirada", "Cancelada"];
+const ICONS = {
+  resumo: "M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z",
+  jogadores: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6 8-6s8 2 8 6",
+  contactos: "M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 18h4",
+  produtos: "M12 21V11M12 11c0-4 3-7 7-8-1 4-3 7-7 8zM12 11C12 7 9 4 5 3c1 4 3 7 7 8zM12 14c-2-1-5-1-7 1 2 2 5 2 7 1M12 14c2-1 5-1 7 1-2 2-5 2-7 1",
+  imoveis: "M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6",
+  veiculos: "M5 16h14M3 16v-3l2-5h14l2 5v3M7 19a1.5 1.5 0 1 0 0-3M17 19a1.5 1.5 0 1 0 0-3",
+  missoes: "M9 4h6v3H9zM7 5H5v16h14V5h-2M9 13l2 2 4-4",
+  ferramentas: "M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z",
+  variaveis: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4",
+  ficheiros: "M8 8l-4 4 4 4M16 8l4 4-4 4M13 5l-2 14",
+  producao: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3M7.5 15h9",
+  dealers: "M4 8h16v12H4zM9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8M4 13h16",
+  procurar: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM20 20l-4.6-4.6",
+  alteracoes: "M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9c0 6-12 3-12 6",
+};
+const NAV = [
+  ["Save", [["resumo", "Resumo"], ["jogadores", "Jogadores"], ["contactos", "Contactos"], ["dealers", "Dealers"], ["produtos", "Produtos"]]],
+  ["Mundo", [["imoveis", "Imóveis"], ["producao", "Produção"], ["veiculos", "Veículos"], ["missoes", "Missões"]]],
+  ["Avançado", [["ferramentas", "Ferramentas"], ["procurar", "Procurar"], ["variaveis", "Variáveis"], ["ficheiros", "Ficheiros"], ["alteracoes", "Alterações"]]],
+];
+
+// ================= estado =================
+const S = {
+  name: "", zipBase: "", prefix: "", order: [], entries: new Map(), origFile: null, gv: "",
+  tab: "resumo", player: null, itemTpl: new Map(), products: new Map(), rawPath: null,
+  npcFilter: { q: "", type: "all" },
+};
+
+// ================= DOM =================
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  if (attrs) for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el[k.toLowerCase()] = v;
+    else if (k === "value") el.value = v;
+    else if (k === "checked") el.checked = !!v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat(Infinity)) {
+    if (c == null || c === false) continue;
+    el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function icon(name) {
+  const s = document.createElementNS(SVGNS, "svg");
+  s.setAttribute("viewBox", "0 0 24 24");
+  s.setAttribute("class", "ico");
+  s.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(SVGNS, "path");
+  p.setAttribute("d", ICONS[name] || "");
+  s.append(p);
+  return s;
+}
+const $ = (id) => document.getElementById(id);
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
+}
+const fmtMoney = (v) => { const n = Number(v) || 0; const d = Number.isInteger(Math.round(n * 100) / 100) ? 0 : 2; return "$" + n.toLocaleString("pt-PT", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" }); };
+const titleCase = (id) => String(id).split("_").map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(" ");
+const fmtSize = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : n > 1024 ? Math.round(n / 1024) + " KB" : n + " B");
+
+function panel(title, body, opts = {}) {
+  return h("section", { class: "panel" + (opts.flat ? " flat" : "") },
+    title != null ? h("header", null, h("h3", null, title), opts.extra ? [h("span", { class: "sp" }), opts.extra] : null) : null,
+    h("div", { class: "body" }, body));
+}
+function viewHead(title, sub, extra) {
+  return h("div", { class: "vh" }, h("div", null, h("h2", null, title), sub ? h("p", null, sub) : null), extra || null);
+}
+function fld(label, control, hint) {
+  return h(control && control.tagName === "LABEL" ? "div" : "label", { class: "fld" }, h("span", null, label), control, hint ? h("small", null, hint) : null);
+}
+function num(obj, key, o = {}) {
+  const inp = h("input", { type: "number", value: obj[key] ?? 0, min: o.min, max: o.max, step: o.step ?? (o.float ? "any" : "1") });
+  inp.onchange = () => {
+    let v = Number(inp.value);
+    if (inp.value === "" || !isFinite(v)) { inp.value = obj[key]; return; }
+    if (!o.float) v = Math.round(v);
+    if (o.min != null) v = Math.max(o.min, v);
+    if (o.max != null) v = Math.min(o.max, v);
+    inp.value = v;
+    if (o.float) setFloat(obj, key, v); else obj[key] = v;
+    commit(o);
+  };
+  return inp;
+}
+function text(obj, key, o = {}) {
+  const inp = h("input", { type: "text", value: obj[key] ?? "", class: o.mono ? "mono" : null, list: o.list, placeholder: o.placeholder });
+  inp.onchange = () => { obj[key] = inp.value; commit(o); };
+  return inp;
+}
+function check(obj, key, label, o = {}) {
+  const inp = h("input", { type: "checkbox", checked: !!obj[key] });
+  inp.onchange = () => { obj[key] = inp.checked; commit(o); };
+  return label == null ? inp : h("label", { class: "check" }, inp, label);
+}
+function commit(o) {
+  if (o.after) o.after();
+  if (o.path) touch(o.path);
+}
+function slider(obj, key, min, max, step, digits, o = {}) {
+  const out = h("output", null, Number(obj[key]).toFixed(digits));
+  const r = h("input", { type: "range", min, max, step, value: obj[key], "aria-label": o.label });
+  r.oninput = () => { out.textContent = Number(r.value).toFixed(digits); };
+  r.onchange = () => { setFloat(obj, key, Number(r.value)); commit(o); };
+  return h("div", { class: "rel" }, r, out);
+}
+
+// ================= ficheiros =================
+const E = (path) => S.entries.get(path);
+function J(path) {
+  const e = E(path);
+  if (!e || e.bytes) return null;
+  if (!e.data) e.data = parseJSON(e.text);
+  return e.data;
+}
+function safeJ(p) { try { return J(p); } catch (e) { return null; } }
+function mark(path) { const e = E(path); if (e) e.dirty = true; }
+function touch(path) { mark(path); refreshChrome(); }
+function outText(e) {
+  if (!e.dirty || !e.data) return e.text;
+  return stringify(e.data, e.pretty) + (e.trailingNL ? "\n" : "");
+}
+const jsonPaths = () => [...S.entries.keys()].filter((p) => p.toLowerCase().endsWith(".json")).sort();
+const propertyPaths = () => [...S.entries.keys()].filter((p) => /^(Properties|Businesses)\/.+\.json$/.test(p)).sort();
+function playerDirs() {
+  const set = new Set();
+  for (const p of S.entries.keys()) { const m = p.match(/^Players\/([^/]+)\//); if (m) set.add(m[1]); }
+  return [...set].sort((a, b) => (a === "Player_0" ? -1 : b === "Player_0" ? 1 : a.localeCompare(b)));
+}
+function steamIdOf(dir) {
+  const p = safeJ("Players/" + dir + "/Player.json");
+  if (p && /^\d{17}$/.test(String(p.PlayerCode))) return String(p.PlayerCode);
+  const m = dir.match(/^Player_(\d{17})$/);
+  return m ? m[1] : null;
+}
+
+// ================= carregar =================
+function readText(x) { return x.zipEntry ? x.zipEntry.async("string") : x.file.text(); }
+async function readBytes(x) { return x.zipEntry ? x.zipEntry.async("uint8array") : new Uint8Array(await x.file.arrayBuffer()); }
+
+async function openFromList(list, base, origFile) {
+  const norm = list.map((x) => ({ ...x, path: x.path.replace(/\\/g, "/").replace(/^\/+/, "") }));
+  const roots = norm.filter((x) => /(^|\/)Game\.json$/.test(x.path)).map((x) => x.path.slice(0, -"Game.json".length));
+  if (!roots.length) throw new Error("Não há nenhum Game.json aqui. Usa o .zip criado pelo Exportar do jogo, ou a pasta SaveGame_N.");
+  let root = roots[0];
+  if (roots.length > 1) root = await chooseRoot(roots, norm);
+  if (root == null) return;
+  const entries = new Map();
+  const order = [];
+  for (const x of norm) {
+    if (!x.path.startsWith(root) || x.path.endsWith("/")) continue;
+    const rel = x.path.slice(root.length);
+    if (!rel) continue;
+    order.push(rel);
+    const date = x.zipEntry ? x.zipEntry.date : (x.file && x.file.lastModified ? new Date(x.file.lastModified) : new Date());
+    if (rel.toLowerCase().endsWith(".json")) {
+      let t = await readText(x);
+      if (t.charCodeAt(0) === 0xfeff) t = t.slice(1);
+      entries.set(rel, { text: t, orig: t, data: null, dirty: false, pretty: t.slice(0, 400).includes("\n"), trailingNL: t.endsWith("\n"), date });
+    } else {
+      entries.set(rel, { bytes: await readBytes(x), dirty: false, date });
+    }
+  }
+  const folderName = root.replace(/\/$/, "").split("/").pop();
+  S.prefix = origFile ? root : (folderName ? folderName + "/" : "");
+  S.name = folderName || base || "SaveGame";
+  S.zipBase = base || S.name;
+  S.origFile = origFile && roots.length === 1 ? origFile : null;
+  S.order = order;
+  S.entries = entries;
+  S.tab = "resumo";
+  S.rawPath = null;
+  S.gv = safeJ("Game.json")?.GameVersion || "0.4.6f13";
+  S.player = playerDirs()[0] || null;
+  buildCatalog();
+  $("empty").hidden = true;
+  $("editor").hidden = false;
+  renderRail();
+  render();
+  refreshChrome();
+  window.scrollTo(0, 0);
+}
+async function openZip(file) {
+  const zip = await JSZip.loadAsync(file);
+  const list = [];
+  zip.forEach((path, entry) => { if (!entry.dir) list.push({ path, zipEntry: entry }); });
+  await openFromList(list, file.name.replace(/\.zip$/i, ""), file);
+}
+function chooseRoot(roots, norm) {
+  return new Promise(async (resolve) => {
+    const items = [];
+    for (const r of roots) {
+      let label = r.replace(/\/$/, "") || "(raiz)";
+      try {
+        const g = parseJSON(await readText(norm.find((x) => x.path === r + "Game.json")));
+        if (g.OrganisationName) label = g.OrganisationName + " (" + label + ")";
+      } catch (e) { /* ignora */ }
+      items.push([r, label]);
+    }
+    const close = (v) => { m.remove(); resolve(v); };
+    const m = modal("Escolhe o save", h("div", { class: "row" }, items.map(([r, l]) => h("button", { class: "btn", onClick: () => close(r) }, l))),
+      [h("button", { class: "btn", onClick: () => close(null) }, "Cancelar")]);
+  });
+}
+function modal(title, body, footer) {
+  const m = h("div", { class: "modal", role: "dialog", "aria-modal": "true" },
+    h("div", { class: "box" }, h("header", null, h("h3", null, title)), h("div", { class: "body" }, body), footer ? h("footer", null, footer) : null));
+  document.body.append(m);
+  const first = m.querySelector("input, button");
+  if (first) first.focus();
+  return m;
+}
+function showLoadError(err) {
+  console.error(err);
+  const el = $("loadErr");
+  el.textContent = err.message || String(err);
+  el.hidden = false;
+}
+
+// ================= catálogo =================
+function buildCatalog() {
+  const tpl = new Map();
+  const visit = (v, depth) => {
+    if (depth > 10) return;
+    if (typeof v === "string") {
+      if (v.length > 20 && v[0] === "{" && v.includes("DataType")) {
+        let o;
+        try { o = parseJSON(v); } catch (e) { return; }
+        visit(o, depth + 1);
+      }
+      return;
+    }
+    if (Array.isArray(v)) { for (const x of v) visit(x, depth); return; }
+    if (v && typeof v === "object") {
+      if (typeof v.ID === "string" && v.ID && "Quantity" in v && typeof v.DataType === "string" && !tpl.has(v.ID)) tpl.set(v.ID, stringify(v, false));
+      for (const k in v) if (k !== "MessageHistory") visit(v[k], depth);
+    }
+  };
+  for (const p of S.entries.keys()) {
+    if (/^(Players|Properties|Businesses)\//.test(p) || ["OwnedVehicles.json", "WorldStorageEntities.json", "NPCs.json"].includes(p)) {
+      try { visit(J(p), 0); } catch (e) { /* ignora */ }
+    }
+  }
+  S.itemTpl = tpl;
+  const prods = new Map();
+  for (const [id, [name, type]] of Object.entries(BASE_PRODUCTS)) prods.set(id, { id, name, type, base: true, fx: [] });
+  const P = safeJ("Products.json");
+  if (P) for (const key of Object.keys(P)) {
+    if (!/^Created/.test(key) || !Array.isArray(P[key])) continue;
+    for (const c of P[key]) prods.set(c.ID, { id: c.ID, name: c.Name, type: c.DrugType, base: false, fx: c.Properties || [], ref: c });
+  }
+  S.products = prods;
+  const ids = new Set([...tpl.keys(), ...prods.keys()]);
+  ids.delete("cash");
+  $("dl-items").replaceChildren(...[...ids].sort().map((id) => h("option", { value: id }, prods.get(id)?.name)));
+  const colors = new Set(["White", "Black", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Grey", "DarkGrey"]);
+  safeJ("OwnedVehicles.json")?.Vehicles?.forEach((v) => v.Color && colors.add(v.Color));
+  $("dl-colors").replaceChildren(...[...colors].map((c) => h("option", { value: c })));
+}
+const emptySlot = () => ({ DataType: "ItemData", DataVersion: 0, GameVersion: S.gv, ID: "", Quantity: 0 });
+function makeItem(id, qty) {
+  if (!id) return emptySlot();
+  let o;
+  if (S.itemTpl.has(id)) o = parseJSON(S.itemTpl.get(id));
+  else {
+    const p = S.products.get(id);
+    if (p && DRUG[p.type]) o = { DataType: DRUG[p.type][1], DataVersion: 0, GameVersion: S.gv, ID: id, Quantity: 1, Quality: "Standard", PackagingID: "" };
+    else o = { DataType: "ItemData", DataVersion: 0, GameVersion: S.gv, ID: id, Quantity: 1 };
+  }
+  o.ID = id;
+  o.Quantity = qty;
+  if ("PackagingID" in o) o.PackagingID = "";
+  if ("Quality" in o) o.Quality = "Standard";
+  return o;
+}
+
+// ================= slots =================
+function slotsEditor(items, onCommit, opts = {}) {
+  const wrap = h("div", { class: "slots" });
+  const draw = () => {
+    const rows = [h("div", { class: "slot slot-head" }, h("span"), h("span", null, "Item"), h("span", null, "Quantidade"), h("span", null, "Qualidade"), h("span", null, "Embalagem"), h("span"))];
+    items.forEach((s, idx) => {
+      let o;
+      try { o = parseJSON(s); } catch (e) { rows.push(h("div", { class: "slot" }, h("span", { class: "n" }, idx + 1), h("span", { class: "err" }, "Slot ilegível"))); return; }
+      const save = () => { items[idx] = stringify(o, false); onCommit(); };
+      if (o.DataType === "CashData") {
+        if (opts.hideCash) return;
+        rows.push(h("div", { class: "slot" }, h("span", { class: "n" }, idx + 1), h("b", null, "Dinheiro"),
+          num(o, "CashBalance", { float: true, min: 0, after: save }), h("span"), h("span"), h("span")));
+        return;
+      }
+      const idIn = h("input", { type: "text", class: "mono", list: "dl-items", value: o.ID, placeholder: "vazio", "aria-label": "Item do slot " + (idx + 1) });
+      idIn.onchange = () => {
+        const id = idIn.value.trim();
+        if (id === o.ID) return;
+        o = makeItem(id, id ? Math.max(1, o.Quantity || 1) : 0);
+        save();
+        draw();
+      };
+      const p = o.ID && S.products.get(o.ID);
+      if (p) idIn.title = p.name;
+      const qty = o.ID ? num(o, "Quantity", { min: 1, after: save }) : h("span");
+      let qual = h("span"), pack = h("span");
+      if (o.ID && "Quality" in o) {
+        qual = h("select", { "aria-label": "Qualidade" }, QUALITIES.map((q) => h("option", { value: q }, q)));
+        if (!QUALITIES.includes(o.Quality)) qual.append(h("option", { value: o.Quality }, o.Quality));
+        qual.value = o.Quality;
+        qual.onchange = () => { o.Quality = qual.value; save(); };
+      } else if (o.ID && "Color" in o) {
+        qual = num(o, "Color", { min: 0, after: save });
+        qual.title = "Índice de cor da peça";
+      } else if (o.ID && "Value" in o) {
+        qual = num(o, "Value", { min: 0, after: save });
+        qual.title = "Valor interno (ex.: balas no carregador)";
+      }
+      if (o.ID && "PackagingID" in o) {
+        pack = h("select", { "aria-label": "Embalagem" }, PACKAGING.map(([v, l]) => h("option", { value: v }, l)));
+        if (!PACKAGING.some(([v]) => v === o.PackagingID)) pack.append(h("option", { value: o.PackagingID }, o.PackagingID));
+        pack.value = o.PackagingID;
+        pack.onchange = () => { o.PackagingID = pack.value; save(); };
+      }
+      const clear = o.ID ? h("button", { class: "icon-btn", title: "Esvaziar slot", "aria-label": "Esvaziar slot " + (idx + 1), onClick: () => { o = emptySlot(); save(); draw(); } }, "×") : h("span");
+      rows.push(h("div", { class: "slot" + (o.ID ? "" : " empty") }, h("span", { class: "n" }, idx + 1), idIn, qty, qual, pack, clear));
+    });
+    wrap.replaceChildren(...rows);
+  };
+  draw();
+  return wrap;
+}
+function slotSummary(items) {
+  let used = 0;
+  for (const s of items) { try { const o = parseJSON(s); if (o.ID && o.DataType !== "CashData") used++; } catch (e) {} }
+  return used + "/" + items.length;
+}
+
+// ================= perfis Steam (guardados neste browser) =================
+const PROFILE_KEY = "s1-editor:perfil:";
+function getProfile(sid) {
+  if (!sid) return {};
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY + sid)) || {}; } catch (e) { return {}; }
+}
+function setProfile(sid, p) {
+  try { localStorage.setItem(PROFILE_KEY + sid, JSON.stringify(p)); return true; } catch (e) { return false; }
+}
+function hashStr(s) {
+  let x = 2166136261;
+  for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); }
+  return x >>> 0;
+}
+function identicon(seed) {
+  const hs = hashStr(String(seed || "?"));
+  const hue = 95 + (hs % 70);
+  const s = document.createElementNS(SVGNS, "svg");
+  s.setAttribute("viewBox", "0 0 50 50");
+  const bg = document.createElementNS(SVGNS, "rect");
+  bg.setAttribute("width", "50"); bg.setAttribute("height", "50");
+  bg.setAttribute("fill", "hsl(" + hue + " 22% 20%)");
+  s.append(bg);
+  let bits = hashStr(String(seed) + "#");
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) {
+    const on = bits & 1; bits = (bits >>> 1) | ((bits & 1) << 31);
+    if (!on) continue;
+    for (const xx of x === 2 ? [2] : [x, 4 - x]) {
+      const r = document.createElementNS(SVGNS, "rect");
+      r.setAttribute("x", 5 + xx * 8); r.setAttribute("y", 5 + y * 8);
+      r.setAttribute("width", "8"); r.setAttribute("height", "8");
+      r.setAttribute("fill", "hsl(" + hue + " 60% 58%)");
+      s.append(r);
+    }
+  }
+  return s;
+}
+function avatarEl(sid, big) {
+  const p = getProfile(sid);
+  const box = h("span", { class: "avatar" + (big ? " big" : "") });
+  const src = (p.avatar && /^data:image\//.test(p.avatar) && p.avatar) || (p.avatarUrl && /^https?:\/\//.test(p.avatarUrl) && p.avatarUrl);
+  if (src) {
+    const img = h("img", { src, alt: "" });
+    img.onerror = () => { img.replaceWith(identicon(sid)); };
+    box.append(img);
+  } else box.append(identicon(sid));
+  return box;
+}
+
+// ---- ligação a um proxy da Steam Web API ----
+const ENDPOINT_KEY = "s1-editor:steam-endpoint";
+const getEndpoint = () => { try { return localStorage.getItem(ENDPOINT_KEY) || ""; } catch (e) { return ""; } };
+const setEndpoint = (v) => { try { localStorage.setItem(ENDPOINT_KEY, v); } catch (e) {} };
+async function urlToDataURL(url) {
+  const r = await fetch(url, { mode: "cors" });
+  if (!r.ok) throw new Error("A imagem respondeu " + r.status + ".");
+  return imageToDataURL(await r.blob());
+}
+function netHint(err) {
+  const m = err && err.message ? err.message : String(err);
+  if (err instanceof TypeError) return "O pedido nem chegou a sair: CSP, CORS ou proxy em baixo. A versão publicada aqui bloqueia pedidos externos; usa o editor alojado por ti.";
+  return m;
+}
+async function fetchSteamProfiles(ids) {
+  const ep = getEndpoint().trim();
+  if (!ep) throw new Error("Falta o endereço do proxy.");
+  const list = ids.join(",");
+  const url = ep + (ep.includes("?") ? "&" : "?") + "ids=" + encodeURIComponent(list) + "&steamids=" + encodeURIComponent(list);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("O proxy respondeu " + r.status + ".");
+  const data = await r.json();
+  const out = {};
+  const players = data?.response?.players || data?.players;
+  if (Array.isArray(players)) {
+    for (const p of players) out[p.steamid] = { name: p.personaname, avatar: p.avatarfull || p.avatarmedium || p.avatar };
+  } else if (data && typeof data === "object") {
+    for (const [k, v] of Object.entries(data)) if (v && typeof v === "object") out[k] = { name: v.name || v.personaname, avatar: v.avatar || v.avatarfull || v.avatarUrl };
+  }
+  return out;
+}
+async function syncSteam(report) {
+  const ids = playerDirs().map(steamIdOf).filter(Boolean);
+  if (!ids.length) { report("Não há SteamIDs neste save."); return; }
+  report("A pedir ao proxy…");
+  let got;
+  try { got = await fetchSteamProfiles(ids); }
+  catch (err) { report("Falhou: " + netHint(err)); return; }
+  let n = 0, imgs = 0;
+  for (const sid of ids) {
+    const info = got[sid];
+    if (!info) continue;
+    const p = { ...getProfile(sid) };
+    if (info.name) p.name = info.name;
+    if (info.avatar) {
+      p.avatarUrl = info.avatar;
+      try { p.avatar = await urlToDataURL(info.avatar); imgs++; } catch (e) { p.avatar = null; }
+    }
+    if (setProfile(sid, p)) n++;
+  }
+  if (!n) { report("O proxy respondeu, mas sem dados para estes SteamIDs. Perfis privados devolvem menos informação."); return; }
+  report(n + " perfis atualizados" + (imgs ? ", " + imgs + " fotos guardadas." : ". As fotos ficam ligadas ao endereço da Steam."));
+  render();
+}
+async function imageToDataURL(blob) {
+  const bmp = await createImageBitmap(blob);
+  const size = 184;
+  const c = document.createElement("canvas");
+  c.width = size; c.height = size;
+  const ctx = c.getContext("2d");
+  const side = Math.min(bmp.width, bmp.height);
+  ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+  return c.toDataURL("image/jpeg", 0.88);
+}
+function profileDialog(sid, label, onDone) {
+  const p = { ...getProfile(sid) };
+  const preview = h("div");
+  const drawPreview = () => {
+    const src = p.avatar || p.avatarUrl;
+    preview.replaceChildren(src ? h("span", { class: "avatar big" }, h("img", { src, alt: "Foto de perfil" })) : h("span", { class: "avatar big" }, identicon(sid)));
+  };
+  drawPreview();
+  const name = h("input", { type: "text", value: p.name || "", placeholder: "Nome na Steam", "aria-label": "Nome na Steam" });
+  const fileIn = h("input", { type: "file", accept: "image/*", hidden: true });
+  const status = h("small", { class: "muted" });
+  const takeBlob = async (blob) => {
+    try { p.avatar = await imageToDataURL(blob); drawPreview(); status.textContent = "Imagem pronta."; }
+    catch (e) { status.textContent = "Essa imagem não abriu. Tenta outra ou um PNG/JPG."; }
+  };
+  fileIn.onchange = () => { if (fileIn.files[0]) takeBlob(fileIn.files[0]); fileIn.value = ""; };
+  const zone = h("div", { class: "paste", tabindex: "0" },
+    "Na Steam, clica com o botão direito na foto de perfil, escolhe Copiar imagem e cola aqui com Ctrl+V. Também podes arrastar um ficheiro de imagem.");
+  zone.ondragover = (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add("over"); };
+  zone.ondragleave = () => zone.classList.remove("over");
+  zone.ondrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove("over");
+    const f = [...e.dataTransfer.files].find((x) => x.type.startsWith("image/"));
+    if (f) takeBlob(f); else status.textContent = "Arrasta um ficheiro de imagem. Imagens arrastadas diretamente da Steam chegam só como link; copia e cola em vez disso.";
+  };
+  const onPaste = (e) => {
+    const it = [...(e.clipboardData?.items || [])].find((x) => x.type.startsWith("image/"));
+    if (it) { e.preventDefault(); takeBlob(it.getAsFile()); return; }
+    const txt = e.clipboardData?.getData("text") || "";
+    if (/^https?:\/\//.test(txt) && document.activeElement !== name) status.textContent = "Isso é um link. Usa Copiar imagem em vez de Copiar endereço da imagem.";
+  };
+  document.addEventListener("paste", onPaste);
+  const close = () => { document.removeEventListener("paste", onPaste); m.remove(); };
+  const urlIn = h("input", { type: "text", class: "mono", value: p.avatarUrl || "", placeholder: "https://avatars.steamstatic.com/…_full.jpg", "aria-label": "Endereço da imagem" });
+  const useUrl = h("button", { class: "btn small", onClick: async () => {
+    const u = urlIn.value.trim();
+    if (!/^https?:\/\//.test(u)) { status.textContent = "Isso não é um endereço http."; return; }
+    p.avatarUrl = u;
+    status.textContent = "A carregar a imagem…";
+    try { p.avatar = await urlToDataURL(u); status.textContent = "Imagem guardada."; }
+    catch (e) { p.avatar = null; status.textContent = "Guardo só o endereço; a imagem em si não veio (" + netHint(e) + ")"; }
+    drawPreview();
+  } }, "Usar este endereço");
+  const steamLink = sid ? h("a", { class: "btn small", href: "https://steamcommunity.com/profiles/" + sid, target: "_blank", rel: "noopener noreferrer" }, "Abrir perfil na Steam") : null;
+  const m = modal("Perfil de " + label, [
+    h("div", { class: "identity" }, preview, h("div", { style: "display:grid;gap:10px" },
+      fld("Nome", name),
+      h("div", null, h("span", { class: "muted", style: "font-size:13px" }, "SteamID "), h("span", { class: "mono" }, sid || "desconhecido")),
+      h("div", { class: "row" }, steamLink, h("button", { class: "btn small", onClick: () => fileIn.click() }, "Escolher imagem"),
+        (p.avatar || p.avatarUrl) ? h("button", { class: "btn small danger", onClick: (ev) => { p.avatar = null; p.avatarUrl = null; urlIn.value = ""; drawPreview(); ev.target.remove(); } }, "Remover foto") : null))),
+    zone, fileIn,
+    h("div", { class: "fld" }, h("span", null, "Ou o endereço da imagem"), h("div", { class: "row" }, urlIn, useUrl),
+      h("small", null, "Botão direito na foto, Copiar endereço da imagem. Funciona quando corres o editor a partir do teu computador ou do teu site.")),
+    status,
+    h("small", { class: "muted" }, "O nome e a foto ficam guardados só neste browser, associados ao SteamID. Não entram no save nem são enviados para lado nenhum. Esta página não consegue ir buscá-los à Steam sozinha, porque o browser bloqueia pedidos a sites externos."),
+  ], [
+    h("button", { class: "btn", onClick: close }, "Cancelar"),
+    h("button", { class: "btn primary", onClick: () => {
+      p.name = name.value.trim();
+      if (!setProfile(sid, p)) { status.textContent = "Não deu para guardar neste browser (armazenamento bloqueado ou cheio)."; return; }
+      close(); onDone && onDone(); toast("Perfil guardado.");
+    } }, "Guardar perfil"),
+  ]);
+  zone.focus();
+}
+function playerLabel(dir) {
+  const sid = steamIdOf(dir);
+  const n = getProfile(sid).name;
+  if (n) return n;
+  return dir === "Player_0" ? "Anfitrião" : "Jogador " + (sid ? sid.slice(-5) : dir);
+}
+
+// ================= HUD / navegação =================
+function renderRail() {
+  const counts = {
+    contactos: safeJ("NPCs.json")?.NPCs?.length,
+    produtos: safeJ("Products.json")?.DiscoveredProducts?.length,
+    veiculos: safeJ("OwnedVehicles.json")?.Vehicles?.length,
+    jogadores: playerDirs().length,
+    imoveis: propertyPaths().length,
+    dealers: (safeJ("NPCs.json")?.NPCs || []).filter((n) => /"DataType":"DealerData"/.test(n.BaseData) && !/"ID":"carteldealer"/.test(n.BaseData)).length || null,
+    producao: propertyPaths().reduce((a, p) => a + ((safeJ(p)?.Objects || []).filter((o) => STATIONS[o.DataType]).length), 0) || null,
+    missoes: safeJ("Quests.json")?.Quests?.length,
+    ficheiros: jsonPaths().length,
+    alteracoes: [...S.entries.values()].filter((e) => e.dirty).length || null,
+  };
+  const kids = [];
+  for (const [group, tabs] of NAV) {
+    kids.push(h("div", { class: "group" }, group));
+    for (const [id, label] of tabs) kids.push(h("button", {
+      "aria-current": S.tab === id ? "true" : "false",
+      onClick: () => go(id),
+    }, h("span", { class: "tile" }, icon(id)), h("span", { class: "lbl" }, label), counts[id] != null ? h("span", { class: "count" }, counts[id]) : null));
+  }
+  $("rail").replaceChildren(...kids);
+}
+function go(tab) { S.tab = tab; renderRail(); render(); window.scrollTo(0, 0); }
+function playerCash(dir) {
+  const inv = safeJ("Players/" + dir + "/Inventory.json");
+  for (const s of inv?.Items || []) { try { const o = parseJSON(s); if (o.DataType === "CashData") return o.CashBalance; } catch (e) {} }
+  return null;
+}
+function refreshChrome() {
+  const game = safeJ("Game.json"), money = safeJ("Money.json"), rank = safeJ("Rank.json"), time = safeJ("Time.json");
+  $("orgName").textContent = game?.OrganisationName || "Sem nome";
+  $("saveName").textContent = [S.name, S.gv ? "v" + S.gv : null, time ? "dia " + time.ElapsedDays : null].filter(Boolean).join(", ");
+  const stats = [];
+  if (money) stats.push(h("div", { class: "hstat" }, h("small", null, "Banco"), h("b", { class: "money" }, fmtMoney(money.OnlineBalance))));
+  const host = playerDirs()[0];
+  const cash = host ? playerCash(host) : null;
+  if (cash != null) stats.push(h("div", { class: "hstat" }, h("small", null, "Em mão"), h("b", { class: "money" }, fmtMoney(cash))));
+  if (rank) stats.push(h("div", { class: "hstat" }, h("small", null, "Rank"), h("b", { class: "rankchip" }, RANKS[rank.Rank] || "Rank " + rank.Rank, h("i", null, ROMAN[rank.Tier] ?? rank.Tier))));
+  $("stats").replaceChildren(...stats);
+  const n = [...S.entries.values()].filter((e) => e.dirty).length;
+  const pend = $("pending");
+  pend.hidden = n === 0;
+  pend.textContent = n === 1 ? "1 ficheiro alterado" : n + " ficheiros alterados";
+  if (S.lastDirty !== n) { S.lastDirty = n; renderRail(); }
+}
+function missing(what) { return h("p", { class: "muted" }, "Este save não tem " + what + "."); }
+function render() {
+  const v = $("view");
+  const fn = VIEWS[S.tab];
+  try {
+    v.replaceChildren(...[fn()].flat());
+  } catch (err) {
+    console.error(err);
+    v.replaceChildren(viewHead("Secção ilegível"), h("p", { class: "err" }, err.message), h("p", { class: "muted" }, "Um dos ficheiros tem um formato inesperado. Podes corrigi-lo em Ficheiros."));
+  }
+}
+
+// ================= exportar =================
+let downloadsCap = null;
+if (window.claude && typeof window.claude.use === "function") {
+  window.claude.use("downloads").then((d) => { downloadsCap = d; }).catch(() => {});
+}
+async function offerFile(blob, filename, okMsg) {
+  if (downloadsCap) {
+    try { await downloadsCap.save({ filename, data: blob }); toast(okMsg); }
+    catch (err) {
+      if (err && err.code === "declined") return;
+      if (err && err.code === "rate_limited") { toast("Já há um pedido de download aberto."); return; }
+      toast("Não foi possível descarregar: " + (err?.message || err?.code || err));
+    }
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  toast(okMsg);
+}
+async function buildZip(original) {
+  const zip = new JSZip();
+  for (const rel of S.order) {
+    const e = E(rel);
+    const content = e.bytes ? e.bytes : original ? e.orig : outText(e);
+    zip.file(S.prefix + rel, content, { createFolders: false, date: !original && e.dirty ? new Date() : e.date });
+  }
+  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+}
+async function exportZip() {
+  const btn = $("exportBtn");
+  btn.disabled = true;
+  try {
+    const blob = await buildZip(false);
+    await offerFile(blob, S.zipBase + "-editado.zip", "Pronto. No jogo: Continuar, Importar, e escolhe este .zip.");
+  } catch (err) { toast("Erro a gerar o zip: " + err.message); }
+  finally { btn.disabled = false; }
+}
+async function backupZip() {
+  const blob = S.origFile || await buildZip(true);
+  await offerFile(blob, S.zipBase + "-original.zip", "Cópia do save original descarregada.");
+}
+
+// ================= Resumo =================
+function viewResumo() {
+  const out = [viewHead("Resumo", "Dinheiro, progressão e estado do mundo.",
+    h("div", { class: "row" }, h("button", { class: "btn small", onClick: backupZip }, "Descarregar cópia do original")))];
+  const game = safeJ("Game.json"), money = safeJ("Money.json"), rank = safeJ("Rank.json"), time = safeJ("Time.json"), law = safeJ("Law.json"), cartel = safeJ("Cartel.json");
+  const row1 = [];
+  if (game) row1.push(panel("Organização", h("div", { class: "grid" },
+    fld("Nome", text(game, "OrganisationName", { path: "Game.json", after: refreshChrome })),
+    fld("Seed do mundo", h("input", { type: "text", value: game.Seed, readonly: true, disabled: true }), "Só leitura: define o mundo gerado."),
+    game.Settings ? fld("Consola", check(game.Settings, "ConsoleEnabled", "Comandos de consola ativos", { path: "Game.json" })) : null)));
+  if (money) row1.push(panel("Finanças", h("div", { class: "grid" },
+    fld("Saldo no banco", num(money, "OnlineBalance", { float: true, min: 0, path: "Money.json", after: refreshChrome })),
+    fld("Património", num(money, "Networth", { float: true, min: 0, path: "Money.json" }), "Recalculado pelo jogo."),
+    fld("Ganhos totais", num(money, "LifetimeEarnings", { float: true, min: 0, path: "Money.json" })),
+    fld("Depósitos esta semana", num(money, "WeeklyDepositSum", { float: true, min: 0, path: "Money.json" }), "A 0 liberta o limite semanal do multibanco."))));
+  if (row1.length) out.push(h("div", { class: "cols" }, row1));
+
+  const row2 = [];
+  if (rank) {
+    const rSel = h("select", null, RANKS.map((r, i) => h("option", { value: i }, r)));
+    if (rank.Rank >= RANKS.length) rSel.append(h("option", { value: rank.Rank }, "Rank " + rank.Rank));
+    rSel.value = rank.Rank;
+    rSel.onchange = () => { rank.Rank = Number(rSel.value); touch("Rank.json"); };
+    const tSel = h("select", null, [1, 2, 3, 4, 5].map((t) => h("option", { value: t }, ROMAN[t])));
+    if (!(rank.Tier >= 1 && rank.Tier <= 5)) tSel.append(h("option", { value: rank.Tier }, String(rank.Tier)));
+    tSel.value = rank.Tier;
+    tSel.onchange = () => { rank.Tier = Number(tSel.value); touch("Rank.json"); };
+    const regions = Array.isArray(rank.UnlockedRegions) ? h("div", { class: "chips" }, REGIONS.map((name, i) => {
+      const c = h("input", { type: "checkbox", checked: rank.UnlockedRegions.includes(i) });
+      c.onchange = () => {
+        const set = new Set(rank.UnlockedRegions);
+        c.checked ? set.add(i) : set.delete(i);
+        rank.UnlockedRegions = [...set].sort((a, b) => a - b);
+        touch("Rank.json");
+      };
+      return h("label", { class: "check" }, c, name);
+    })) : null;
+    row2.push(panel("Rank", [h("div", { class: "grid" },
+      fld("Rank", rSel), fld("Nível", tSel),
+      fld("XP no nível", num(rank, "XP", { min: 0, path: "Rank.json" })),
+      fld("XP total", num(rank, "TotalXP", { min: 0, path: "Rank.json" }), "Ajusta junto com o rank para ficarem coerentes.")),
+      regions ? h("div", { class: "fld", style: "margin-top:16px" }, h("span", null, "Regiões desbloqueadas"), regions) : null]));
+  }
+  if (time) {
+    const hhmm = (t) => String(Math.floor(t / 100)).padStart(2, "0") + ":" + String(t % 100).padStart(2, "0");
+    const tIn = h("input", { type: "time", value: hhmm(time.TimeOfDay) });
+    tIn.onchange = () => {
+      const [hh, mm] = tIn.value.split(":").map(Number);
+      if (!isFinite(hh) || !isFinite(mm)) return;
+      time.TimeOfDay = hh * 100 + mm;
+      touch("Time.json");
+    };
+    row2.push(panel("Tempo", h("div", { class: "grid" },
+      fld("Dia", num(time, "ElapsedDays", { min: 0, path: "Time.json", after: refreshChrome })),
+      fld("Hora", tIn),
+      fld("Tempo de jogo", h("input", { type: "text", value: (time.Playtime / 3600).toFixed(1) + " h", readonly: true, disabled: true })))));
+  }
+  if (row2.length) out.push(h("div", { class: "cols" }, row2));
+
+  if (law || cartel) {
+    const kids = [];
+    const g = [];
+    if (law) g.push(fld("Intensidade policial", num(law, "InternalLawIntensity", { float: true, min: 0, step: 0.1, path: "Law.json" }), "Valor interno do jogo."));
+    if (cartel) {
+      g.push(fld("Estado do cartel", num(cartel, "Status", { min: 0, path: "Cartel.json" }), "Código interno. Muda com cuidado."));
+      (cartel.RegionInfluence || []).forEach((r) => g.push(fld("Cartel em " + (REGIONS[r.Region] || "região " + r.Region),
+        slider(r, "Influence", 0, 1, 0.01, 2, { path: "Cartel.json", label: "Influência do cartel em " + (REGIONS[r.Region] || r.Region) }))));
+    }
+    kids.push(h("div", { class: "grid" }, g));
+    if (cartel) kids.push(h("p", { class: "note" }, "Influência do cartel: 0 é nenhuma, 1 é controlo total da região."));
+    out.push(panel("Polícia e cartel", kids));
+  }
+  return out;
+}
+
+// ================= Jogadores =================
+function viewJogadores() {
+  const out = [viewHead("Jogadores", "Cada pessoa que jogou neste save tem inventário e dinheiro próprios. O anfitrião é o Player_0.")];
+  const dirs = playerDirs();
+  if (!dirs.length) return [...out, missing("jogadores")];
+  if (!dirs.includes(S.player)) S.player = dirs[0];
+  out.push(h("div", { class: "players" }, dirs.map((d) => {
+    const sid = steamIdOf(d);
+    const prof = getProfile(sid);
+    const cash = playerCash(d);
+    const pl = safeJ("Players/" + d + "/Player.json");
+    return h("button", { class: "pcard", "aria-pressed": d === S.player ? "true" : "false", onClick: () => { S.player = d; render(); } },
+      avatarEl(sid),
+      h("span", { style: "display:block;min-width:0" },
+        h("span", { class: "pname" }, prof.name || (d === "Player_0" ? "Anfitrião" : "Jogador convidado")),
+        h("span", { class: "mono muted", style: "display:block" }, sid || d),
+        h("span", { class: "meta" },
+          d === "Player_0" ? h("span", { class: "tag ok" }, "Anfitrião") : h("span", { class: "tag" }, "Convidado"),
+          cash != null ? h("span", { class: "tag" }, fmtMoney(cash)) : null,
+          pl && pl.GameVersion && pl.GameVersion !== S.gv ? h("span", { class: "tag warn", title: "Última vez guardado nesta versão" }, "v" + pl.GameVersion) : null)));
+  })));
+
+  const epIn = h("input", { type: "text", class: "mono", value: getEndpoint(), placeholder: "https://o-teu-proxy.exemplo/api/steam", "aria-label": "Endereço do proxy" });
+  epIn.onchange = () => setEndpoint(epIn.value.trim());
+  const epStatus = h("small", { class: "muted" }, S.steamStatus || "");
+  const report = (m) => { S.steamStatus = m; epStatus.textContent = m; };
+  const sync = h("button", { class: "btn small", onClick: async () => {
+    setEndpoint(epIn.value.trim());
+    sync.disabled = true;
+    await syncSteam(report);
+    sync.disabled = false;
+  } }, "Ir buscar nomes e fotos");
+  out.push(panel("Ligação à Steam", [
+    h("div", { class: "fld" }, h("span", null, "Endereço do teu proxy da Steam Web API"), h("div", { class: "row" }, epIn, sync), epStatus),
+    h("p", { class: "note" }, "A Steam não deixa o browser falar diretamente com a API dela, por isso precisas de um proxy teu com a tua chave. Deixa isto vazio e continuas a poder definir nome e foto à mão em cada jogador. O endereço fica guardado só neste browser."),
+  ]));
+
+  const dir = S.player;
+  const sid = steamIdOf(dir);
+  const prof = getProfile(sid);
+  const pl = safeJ("Players/" + dir + "/Player.json");
+  const idBody = h("div", { class: "identity" }, avatarEl(sid, true), h("div", { style: "display:grid;gap:10px" },
+    h("div", null, h("div", { style: "font-family:var(--display);font-size:28px;font-weight:600;line-height:1.1" }, prof.name || "Sem nome definido"),
+      h("div", { class: "mono muted" }, sid ? "SteamID " + sid : dir)),
+    h("div", { class: "row" },
+      h("button", { class: "btn small primary", onClick: () => profileDialog(sid, playerLabel(dir), () => render()) }, prof.name || prof.avatar ? "Editar nome e foto" : "Definir nome e foto"),
+      sid ? h("a", { class: "btn small", href: "https://steamcommunity.com/profiles/" + sid, target: "_blank", rel: "noopener noreferrer" }, "Perfil na Steam") : null),
+    pl ? h("div", { class: "chips muted", style: "font-size:13px" },
+      pl.Position ? h("span", null, "Posição " + ["x", "y", "z"].map((k) => Number(pl.Position[k]).toFixed(1)).join(" / ")) : null,
+      "IntroCompleted" in pl ? check(pl, "IntroCompleted", "Introdução concluída", { path: "Players/" + dir + "/Player.json" }) : null) : null));
+  out.push(panel("Identidade", idBody));
+
+  const path = "Players/" + dir + "/Inventory.json";
+  const inv = safeJ(path);
+  if (!inv || !Array.isArray(inv.Items)) return [...out, missing("inventário para este jogador")];
+  const cashIdx = inv.Items.findIndex((s) => { try { return parseJSON(s).DataType === "CashData"; } catch (e) { return false; } });
+  const fillN = h("input", { type: "number", value: 20, min: 1, style: "width:90px", "aria-label": "Quantidade para todos os slots" });
+  const fill = h("div", { class: "row" }, h("span", { class: "muted", style: "font-size:13.5px" }, "Pôr todos os itens a"), fillN,
+    h("button", { class: "btn small", onClick: () => {
+      const n = Math.max(1, Math.round(Number(fillN.value) || 1));
+      let c = 0;
+      inv.Items.forEach((s, i) => { try { const o = parseJSON(s); if (o.ID && o.DataType !== "CashData") { o.Quantity = n; inv.Items[i] = stringify(o, false); c++; } } catch (e) {} });
+      touch(path); render(); toast(c + " slots atualizados.");
+    } }, "Aplicar"));
+  const body = [];
+  if (cashIdx >= 0) {
+    const cash = parseJSON(inv.Items[cashIdx]);
+    body.push(h("div", { class: "grid", style: "margin-bottom:16px" }, fld("Dinheiro em mão", num(cash, "CashBalance", { float: true, min: 0, after: () => { inv.Items[cashIdx] = stringify(cash, false); touch(path); } }), "Dinheiro físico, separado do banco.")));
+  }
+  body.push(slotsEditor(inv.Items, () => touch(path), { hideCash: true }),
+    h("p", { class: "note" }, "Escreve o ID do item; as sugestões incluem tudo o que aparece no save. Quantidades acima do limite do stack podem ser cortadas pelo jogo."));
+  out.push(panel("Inventário", body, { extra: fill }));
+  out.push(...appearancePanels(dir));
+  return out;
+}
+
+// ================= Contactos =================
+function npcModels() {
+  const N = safeJ("NPCs.json");
+  if (!N || !Array.isArray(N.NPCs)) return null;
+  return N.NPCs.map((n, i) => {
+    let base = {};
+    try { base = parseJSON(n.BaseData); } catch (e) {}
+    const ad = {};
+    for (const a of n.AdditionalDatas || []) {
+      if (!["Relationship", "CustomerData", "Health"].includes(a.Name)) continue;
+      try { ad[a.Name] = { a, o: parseJSON(a.Contents), pretty: a.Contents.includes("\n") }; } catch (e) {}
+    }
+    return {
+      i, n, base, ad,
+      kind: base.DataType === "DealerData" ? "dealer" : base.DataType === "SupplierData" ? "supplier" : ad.CustomerData ? "customer" : "npc",
+      saveBase() { n.BaseData = stringify(base, false); },
+      saveAd(name) { const x = ad[name]; x.a.Contents = stringify(x.o, x.pretty); },
+    };
+  });
+}
+function viewContactos() {
+  const out = [viewHead("Contactos", "Relações, clientes, dealers e quem está morto. As ações em massa aplicam-se só aos contactos filtrados.")];
+  const especiais = specialCustomersPanel();
+  if (especiais) out.push(especiais);
+  const models = npcModels();
+  if (!models) return [...out, missing("NPCs.json")];
+  const P = "NPCs.json";
+  const F = S.npcFilter;
+  const KIND = { customer: "Cliente", dealer: "Dealer", supplier: "Fornecedor", npc: "Outro" };
+  const list = models.filter((m) => {
+    const id = m.base.ID || "";
+    if (F.q && !(id + " " + titleCase(id)).toLowerCase().includes(F.q.toLowerCase())) return false;
+    if (F.type === "dead") return !!m.ad.Health?.o.IsDead;
+    if (F.type === "locked") return m.ad.Relationship && !m.ad.Relationship.o.Unlocked;
+    return F.type === "all" || m.kind === F.type;
+  });
+  const q = h("input", { type: "search", class: "grow", placeholder: "Procurar por nome", value: F.q, "aria-label": "Procurar contactos" });
+  q.oninput = () => { F.q = q.value; const pos = q.selectionStart; render(); const nq = document.querySelector("#view input[type=search]"); if (nq) { nq.focus(); nq.setSelectionRange(pos, pos); } };
+  const type = h("select", { "aria-label": "Filtrar" },
+    [["all", "Todos"], ["customer", "Clientes"], ["dealer", "Dealers"], ["supplier", "Fornecedores"], ["npc", "Outros"], ["locked", "Bloqueados"], ["dead", "Mortos"]].map(([v, l]) => h("option", { value: v }, l)));
+  type.value = F.type;
+  type.onchange = () => { F.type = type.value; render(); };
+  const bulk = (label, fn) => h("button", { class: "btn small", onClick: () => { let c = 0; for (const m of list) if (fn(m)) c++; touch(P); render(); toast(c + " contactos alterados."); } }, label);
+  out.push(h("div", { class: "toolbar" }, q, type,
+    bulk("Relação máxima", (m) => { const r = m.ad.Relationship; if (!r) return false; setFloat(r.o, "RelationDelta", 5); m.saveAd("Relationship"); return true; }),
+    bulk("Desbloquear", (m) => { const r = m.ad.Relationship; if (!r || r.o.Unlocked) return false; r.o.Unlocked = true; m.saveAd("Relationship"); return true; }),
+    bulk("Dependência máxima", (m) => { const c = m.ad.CustomerData; if (!c) return false; setFloat(c.o, "Dependence", 1); m.saveAd("CustomerData"); return true; }),
+    bulk("Ressuscitar", (m) => reviveModel(m))));
+  if (!list.length) return [...out, h("p", { class: "muted" }, "Nenhum contacto corresponde ao filtro.")];
+  const rows = list.map((m) => {
+    const r = m.ad.Relationship, c = m.ad.CustomerData, hp = m.ad.Health;
+    const extra = [];
+    if (m.kind === "dealer") {
+      if ("Recruited" in m.base) extra.push(check(m.base, "Recruited", "Recrutado", { after: () => m.saveBase(), path: P }));
+      if ("Cash" in m.base) { const inp = num(m.base, "Cash", { float: true, min: 0, after: () => m.saveBase(), path: P }); inp.style.width = "110px"; extra.push(h("label", { class: "check" }, "Dinheiro", inp)); }
+    }
+    if (hp) extra.push(check(hp.o, "IsDead", "Morto", { after: () => { if (!hp.o.IsDead) setFloat(hp.o, "Health", 100); m.saveAd("Health"); render(); }, path: P }));
+    return h("tr", null,
+      h("td", { class: "name" }, titleCase(m.base.ID || "?")),
+      h("td", null, h("span", { class: "tag" + (m.kind === "dealer" ? " ok" : m.kind === "supplier" ? " info" : "") }, KIND[m.kind]), hp && hp.o.IsDead ? [" ", h("span", { class: "tag bad" }, "morto")] : null),
+      h("td", null, r ? slider(r.o, "RelationDelta", 0, 5, 0.1, 1, { after: () => m.saveAd("Relationship"), path: P, label: "Relação com " + titleCase(m.base.ID) }) : h("span", { class: "muted" }, "—")),
+      h("td", null, r ? check(r.o, "Unlocked", null, { after: () => m.saveAd("Relationship"), path: P }) : h("span", { class: "muted" }, "—")),
+      h("td", null, c ? slider(c.o, "Dependence", 0, 1, 0.01, 2, { after: () => m.saveAd("CustomerData"), path: P, label: "Dependência de " + titleCase(m.base.ID) }) : h("span", { class: "muted" }, "—")),
+      h("td", null, c ? h("span", { class: "num-tab" }, c.o.CompletedDeals ?? 0) : h("span", { class: "muted" }, "—")),
+      h("td", null, h("div", { class: "chips" }, extra)));
+  });
+  out.push(h("section", { class: "panel flat" }, h("div", { class: "table-wrap" }, h("table", null,
+    h("thead", null, h("tr", null, ["Nome", "Tipo", "Relação", "Desbloqueado", "Dependência", "Negócios", "Extra"].map((t) => h("th", null, t)))),
+    h("tbody", null, rows)))));
+  return out;
+}
+function reviveModel(m) {
+  const x = m.ad.Health;
+  if (!x || !x.o.IsDead) return false;
+  x.o.IsDead = false;
+  setFloat(x.o, "Health", 100);
+  if ("DaysPassedSinceDeath" in x.o) x.o.DaysPassedSinceDeath = 0;
+  m.saveAd("Health");
+  return true;
+}
+
+// ================= Produtos =================
+function viewProdutos() {
+  const out = [viewHead("Produtos", "Preços pedidos, nomes das tuas misturas e favoritos.")];
+  const P = safeJ("Products.json");
+  if (!P) return [...out, missing("Products.json")];
+  const path = "Products.json";
+  P.ProductPrices = P.ProductPrices || [];
+  const priceOf = (id) => {
+    let e = P.ProductPrices.find((x) => x.String === id);
+    if (!e) { e = { String: id, Int: 0 }; P.ProductPrices.push(e); }
+    return e;
+  };
+  const ids = P.DiscoveredProducts || [];
+  const fav = new Set(P.FavouritedProducts || []);
+  const factor = h("input", { type: "number", value: 1.5, step: 0.1, min: 0.1, style: "width:90px", "aria-label": "Fator de preço" });
+  const flt = h("select", { "aria-label": "Tipo de produto" }, [["all", "Todos os tipos"], ...Object.entries(DRUG).map(([k, v]) => [k, v[0]])].map(([v, l]) => h("option", { value: v }, l)));
+  flt.value = S.prodFilter || "all";
+  flt.onchange = () => { S.prodFilter = flt.value; render(); };
+  const shown = ids.filter((id) => (S.prodFilter || "all") === "all" || String(S.products.get(id)?.type) === S.prodFilter);
+  out.push(h("div", { class: "toolbar" }, flt,
+    h("span", { class: "muted", style: "margin-left:8px" }, "Multiplicar preços filtrados por"), factor,
+    h("button", { class: "btn small", onClick: () => {
+      const f = Number(factor.value);
+      if (!(f > 0)) return;
+      for (const id of shown) { const e = priceOf(id); e.Int = Math.max(1, Math.round(e.Int * f)); }
+      touch(path); render(); toast(shown.length + " preços atualizados.");
+    } }, "Aplicar")));
+  const rows = shown.map((id) => {
+    const info = S.products.get(id) || { name: titleCase(id), type: -1, fx: [] };
+    const price = num(priceOf(id), "Int", { min: 0, path });
+    price.style.width = "100px";
+    const favBox = h("input", { type: "checkbox", checked: fav.has(id), "aria-label": "Favorito" });
+    favBox.onchange = () => {
+      favBox.checked ? fav.add(id) : fav.delete(id);
+      P.FavouritedProducts = ids.filter((x) => fav.has(x));
+      touch(path);
+    };
+    return h("tr", null,
+      h("td", null, info.ref ? text(info.ref, "Name", { path, after: () => { info.name = info.ref.Name; } }) : h("b", null, info.name)),
+      h("td", null, h("span", { class: "mono muted" }, id)),
+      h("td", null, h("span", { class: "tag" }, DRUG[info.type]?.[0] || "?")),
+      h("td", null, h("div", { class: "fx" }, info.fx.map((f) => h("span", { class: "tag" }, f)))),
+      h("td", null, price),
+      h("td", null, favBox));
+  });
+  out.push(h("section", { class: "panel flat" }, h("div", { class: "table-wrap" }, h("table", null,
+    h("thead", null, h("tr", null, ["Nome", "ID", "Tipo", "Efeitos", "Preço ($)", "Favorito"].map((t) => h("th", null, t)))),
+    h("tbody", null, rows)))));
+  return out;
+}
+
+// ================= Imóveis =================
+const LAUNDER_CAP = { "Post Office": [4000, 5000], "Car Wash": [6000, 8000], "Taco Ticklers": [8000, 12000] };
+function viewImoveis() {
+  const out = [viewHead("Imóveis e negócios", "Posse, lavagem de dinheiro, empregados e o conteúdo de prateleiras, cacifos e armários.")];
+  const paths = propertyPaths();
+  if (!paths.length) out.push(missing("imóveis"));
+  for (const path of paths) {
+    let d;
+    try { d = J(path); } catch (e) { out.push(panel(path, h("p", { class: "err" }, e.message))); continue; }
+    const name = path.split("/").pop().replace(/\.json$/, "");
+    const kids = [];
+    const cap = LAUNDER_CAP[name];
+    const ops = (d.LaunderingOperations || []).map((op) => h("div", { class: "grid" },
+      fld("Valor a lavar", num(op, "Amount", { float: true, min: 0, path }), cap ? "Capacidade na 0.4.7: " + cap[1] + " (era " + cap[0] + ")" : null),
+      fld("Minutos decorridos", num(op, "MinutesSinceStarted", { min: 0, path }), "Um dia de jogo são 1440 minutos.")));
+    if (ops.length) kids.push(h("div", { style: "padding:14px 18px;border-bottom:1px solid var(--line);display:grid;gap:10px" }, h("b", null, "Lavagem em curso"), ops));
+    const emps = (d.Employees || []).map((em) => {
+      let b;
+      try { b = parseJSON(em.BaseData); } catch (e) { return null; }
+      const save = () => { em.BaseData = stringify(b, false); };
+      const role = (b.DataType || "").replace(/Data$/, "");
+      const ROLE = { Botanist: "Botânico", Chemist: "Químico", Packager: "Embalador", Cleaner: "Empregado de limpeza" };
+      return h("tr", null,
+        h("td", null, text(b, "FirstName", { path, after: save })),
+        h("td", null, text(b, "LastName", { path, after: save })),
+        h("td", null, h("span", { class: "tag" }, ROLE[role] || role)),
+        h("td", null, "PaidForToday" in b ? check(b, "PaidForToday", "Pago hoje", { path, after: save }) : null));
+    }).filter(Boolean);
+    if (emps.length) kids.push(h("div", { class: "table-wrap", style: "border-bottom:1px solid var(--line)" }, h("table", null,
+      h("thead", null, h("tr", null, ["Nome", "Apelido", "Função", "Salário"].map((t) => h("th", null, t)))), h("tbody", null, emps))));
+    const stores = [];
+    (d.Objects || []).forEach((obj) => {
+      if (obj.DataType !== "PlaceableStorageData") return;
+      let base;
+      try { base = parseJSON(obj.BaseData); } catch (e) { return; }
+      if (!base.Contents || !Array.isArray(base.Contents.Items)) return;
+      let itemId = "armazenamento";
+      try { itemId = parseJSON(base.ItemString).ID; } catch (e) {}
+      const items = base.Contents.Items;
+      const sum = h("span", { class: "tag" }, slotSummary(items));
+      const det = h("details", { class: "store" }, h("summary", null, h("span", { class: "mono" }, itemId), sum));
+      let built = false;
+      det.ontoggle = () => {
+        if (!det.open || built) return;
+        built = true;
+        det.append(slotsEditor(items, () => { obj.BaseData = stringify(base, false); sum.textContent = slotSummary(items); touch(path); }));
+      };
+      stores.push(det);
+    });
+    if (stores.length) kids.push(h("div", null, stores));
+    else kids.push(h("p", { class: "muted", style: "margin:0;padding:12px 18px" }, "Sem armazenamento colocado."));
+    out.push(h("section", { class: "panel flat" },
+      h("header", null, h("h3", null, name), h("span", { class: "tag" }, path.startsWith("Businesses") ? "Negócio" : "Imóvel"),
+        emps.length ? h("span", { class: "tag" }, emps.length + " empregados") : null, h("span", { class: "sp" }),
+        "IsOwned" in d ? check(d, "IsOwned", "Comprado", { path }) : null),
+      h("div", { class: "body" }, kids)));
+  }
+  const W = safeJ("WorldStorageEntities.json");
+  if (W && Array.isArray(W.Entities) && W.Entities.length) {
+    out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, "Outros armazenamentos no mundo")),
+      h("div", { class: "body" }, W.Entities.filter((en) => en.Contents && Array.isArray(en.Contents.Items)).map((en, i) => {
+        const sum = h("span", { class: "tag" }, slotSummary(en.Contents.Items));
+        return h("details", { class: "store" }, h("summary", null, h("span", { class: "mono" }, "Entidade " + (i + 1)), sum),
+          slotsEditor(en.Contents.Items, () => { sum.textContent = slotSummary(en.Contents.Items); touch("WorldStorageEntities.json"); }));
+      }))));
+  }
+  return out;
+}
+
+// ================= Veículos =================
+function viewVeiculos() {
+  const out = [viewHead("Veículos", "Cor e bagageira de cada veículo teu.")];
+  const V = safeJ("OwnedVehicles.json");
+  const path = "OwnedVehicles.json";
+  if (!V || !Array.isArray(V.Vehicles) || !V.Vehicles.length) return [...out, missing("veículos")];
+  V.Vehicles.forEach((v) => {
+    const items = v.VehicleContents?.Items;
+    out.push(h("section", { class: "panel" },
+      h("header", null, h("h3", null, titleCase(v.VehicleCode || "veículo")), h("span", { class: "mono muted" }, v.VehicleCode), h("span", { class: "sp" }),
+        h("label", { class: "check" }, "Cor", (() => { const t = text(v, "Color", { path, list: "dl-colors" }); t.style.width = "140px"; return t; })())),
+      h("div", { class: "body" }, Array.isArray(items) ? slotsEditor(items, () => touch(path)) : h("p", { class: "muted" }, "Sem bagageira."))));
+  });
+  return out;
+}
+
+// ================= Missões =================
+function stateSelect(obj, key, path, after) {
+  const s = h("select", { style: "width:auto" }, QUEST_STATES.map((l, i) => h("option", { value: i }, l)));
+  if (!(obj[key] >= 0 && obj[key] < QUEST_STATES.length)) s.append(h("option", { value: obj[key] }, "Estado " + obj[key]));
+  s.value = obj[key];
+  s.onchange = () => { obj[key] = Number(s.value); touch(path); after && after(); };
+  return s;
+}
+function viewMissoes() {
+  const out = [viewHead("Missões", "Estado das missões da história e dos contratos ativos. Alterar missões pode saltar partes da história, por isso guarda o original.")];
+  const Q = safeJ("Quests.json");
+  const path = "Quests.json";
+  if (!Q) return [...out, missing("Quests.json")];
+  const quests = Q.Quests || [];
+  out.push(h("div", { class: "toolbar" },
+    h("button", { class: "btn small", onClick: () => {
+      let c = 0;
+      for (const q of quests) if (q.State === 1) { q.State = 2; (q.Entries || []).forEach((e) => { e.State = 2; }); c++; }
+      if (c) touch(path);
+      render(); toast(c ? c + " missões ativas concluídas." : "Não havia missões ativas.");
+    } }, "Concluir missões ativas")));
+  const rows = quests.map((q) => {
+    const entries = q.Entries || [];
+    const det = entries.length ? h("details", null, h("summary", { class: "muted", style: "cursor:pointer;font-size:13px" }, entries.length + " passos"),
+      h("div", { style: "display:grid;gap:6px;margin-top:8px" }, entries.map((e) => h("div", { class: "row", style: "justify-content:space-between" }, h("span", { style: "font-size:13.5px" }, e.Name), stateSelect(e, "State", path))))) : null;
+    return h("tr", null,
+      h("td", null, h("b", null, q.Title), h("div", { class: "muted", style: "font-size:13px;max-width:52ch" }, q.Description), det),
+      h("td", null, stateSelect(q, "State", path)),
+      h("td", null, check(q, "IsTracked", "Seguir", { path })));
+  });
+  out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, "Missões"), h("span", { class: "tag" }, quests.length)),
+    h("div", { class: "table-wrap" }, h("table", null, h("thead", null, h("tr", null, ["Missão", "Estado", "No ecrã"].map((t) => h("th", null, t)))), h("tbody", null, rows)))));
+  const contracts = Q.Contracts || [];
+  if (contracts.length) {
+    out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, "Contratos"), h("span", { class: "tag" }, contracts.length)),
+      h("div", { class: "table-wrap" }, h("table", null, h("thead", null, h("tr", null, ["Contrato", "Pagamento", "Estado"].map((t) => h("th", null, t)))),
+        h("tbody", null, contracts.map((c) => h("tr", null,
+          h("td", null, h("b", null, c.Title), h("div", { class: "muted", style: "font-size:13px" }, c.Description)),
+          h("td", null, "Payment" in c ? (() => { const n = num(c, "Payment", { float: true, min: 0, path }); n.style.width = "110px"; return n; })() : null),
+          h("td", null, stateSelect(c, "State", path)))))))));
+  }
+  return out;
+}
+
+// ================= etiquetas e campos automáticos =================
+const STATIONS = {
+  PotData: "Vaso", MushroomBedData: "Cama de cogumelos", DryingRackData: "Secador",
+  MixingStationData: "Estação de mistura", ChemistryStationData: "Estação de química", LabOvenData: "Forno",
+  CauldronData: "Caldeirão", BrickPressData: "Prensa de tijolos", PackagingStationData: "Estação de embalagem",
+  SpawnStationData: "Estação de esporos",
+};
+const LBL = {
+  SoilID: "Terra", SoilLevel: "Nível de terra", RemainingSoilUses: "Usos de terra restantes", WaterLevel: "Água",
+  SeedID: "Semente", GrowthProgress: "Crescimento", MushroomSpawnID: "Esporos", Quality: "Qualidade",
+  CurrentRecipeID: "Receita atual", ProductQuality: "Qualidade do produto", LiquidLevel: "Nível de líquido",
+  CurrentTime: "Tempo decorrido", CurrentIngredientID: "Ingrediente", CurrentIngredientQuantity: "Quantidade do ingrediente",
+  CurrentIngredientQuality: "Qualidade do ingrediente", CurrentProductID: "Produto", CurrentCookProgress: "Progresso da cozedura",
+  RemainingCookTime: "Tempo de cozedura restante", InputQuality: "Qualidade de entrada", CurrentMixTime: "Tempo de mistura",
+  ProductID: "Produto", IngredientID: "Ingrediente", Quantity: "Quantidade", StartLiquidColor: "Cor do líquido",
+  Gender: "Género", Weight: "Peso", SkinColor: "Cor da pele", HairStyle: "Cabelo", HairColor: "Cor do cabelo",
+  Mouth: "Boca", FacialHair: "Barba", FacialDetails: "Detalhes do rosto", FacialDetailsIntensity: "Intensidade dos detalhes",
+  EyeballColor: "Cor dos olhos", UpperEyeLidRestingPosition: "Pálpebra superior", LowerEyeLidRestingPosition: "Pálpebra inferior",
+  PupilDilation: "Dilatação da pupila", EyebrowScale: "Tamanho das sobrancelhas", EyebrowThickness: "Espessura das sobrancelhas",
+  EyebrowRestingHeight: "Altura das sobrancelhas", EyebrowRestingAngle: "Ângulo das sobrancelhas",
+  Top: "Camisola", TopColor: "Cor da camisola", Bottom: "Calças", BottomColor: "Cor das calças",
+  Shoes: "Sapatos", ShoesColor: "Cor dos sapatos", Headwear: "Chapéu", HeadwearColor: "Cor do chapéu",
+  Eyewear: "Óculos", EyewearColor: "Cor dos óculos", Tattoos: "Tatuagens",
+  HairStyleId: "Cabelo", FaceId: "Rosto", FacialHairId: "Barba", FacialDetailId: "Detalhes do rosto",
+  FacialDetailIntensity: "Intensidade dos detalhes", UpperEyelidPosition: "Pálpebra superior",
+  LowerEyelidPosition: "Pálpebra inferior", EyebrowHeight: "Altura das sobrancelhas", EyebrowAngle: "Ângulo das sobrancelhas",
+  AdditionalAvatarObjects: "Tatuagens e extras",
+};
+const SLOT_LBL = {
+  Contents: "Conteúdo", Input: "Entrada", Output: "Saída", InputContents: "Entrada", OutputContents: "Saída",
+  ProductContents: "Produto", MixerContents: "Misturador", Ingredients: "Ingredientes", Liquid: "Líquido",
+  OverflowItems: "Transbordo", Items: "Itens",
+};
+const AUTO_SKIP = new Set(["DataType", "DataVersion", "GameVersion", "LoadOrder", "GridGUID", "GUID", "OriginCoordinate",
+  "ItemString", "Rotation", "ParentSurfaceGUID", "RelativePosition", "RelativeRotation", "FootprintMatches", "SlotFilters",
+  "ActiveMushroomAlignmentIndices", "ActiveBuds", "AppliedAdditives", "Tattoos", "AdditionalAvatarObjects"]);
+const PROGRESS_KEYS = /^(GrowthProgress|LiquidLevel|Quality|Weight|FacialDetailsIntensity|FacialDetailIntensity|UpperEyeLidRestingPosition|LowerEyeLidRestingPosition|UpperEyelidPosition|LowerEyelidPosition|PupilDilation)$/;
+const ID_KEYS = /(SeedID|SoilID|IngredientID|ProductID|SpawnID|RecipeID)$/;
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const to255 = (x) => Math.round(clamp01(Number(x) || 0) * 255);
+function colorField(c, save) {
+  const hex = "#" + [c.r, c.g, c.b].map((v) => to255(v).toString(16).padStart(2, "0")).join("");
+  const inp = h("input", { type: "color", value: hex, style: "height:36px;padding:2px" });
+  inp.onchange = () => {
+    const v = inp.value;
+    setFloat(c, "r", parseInt(v.slice(1, 3), 16) / 255);
+    setFloat(c, "g", parseInt(v.slice(3, 5), 16) / 255);
+    setFloat(c, "b", parseInt(v.slice(5, 7), 16) / 255);
+    if ("a" in c && Number(c.a) === 0) setFloat(c, "a", 1);
+    save();
+  };
+  return inp;
+}
+function roChips(arr) {
+  if (!arr.length) return h("span", { class: "muted", style: "font-size:13px" }, "nenhum");
+  return h("div", { class: "fx" }, arr.map((x) => h("span", { class: "tag" },
+    typeof x === "string" ? x.split("/").pop() : x && typeof x === "object" ? (x.Id || x.Name || stringify(x, false).slice(0, 40)) : String(x))));
+}
+function autoFields(obj, save, opts = {}) {
+  const out = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (AUTO_SKIP.has(k)) continue;
+    const label = LBL[k] || k;
+    if (v && typeof v === "object" && Array.isArray(v.Items)) continue;
+    if (Array.isArray(v)) { out.push(fld(label, roChips(v))); continue; }
+    if (v && typeof v === "object" && "r" in v && "g" in v && "b" in v) { out.push(fld(label, colorField(v, save))); continue; }
+    if (v && typeof v === "object") { out.push(...autoFields(v, save, opts)); continue; }
+    if (typeof v === "boolean") { out.push(fld(label, check(obj, k, "sim", { after: save }))); continue; }
+    if (typeof v === "number") {
+      if (k === "Gender") {
+        const s = h("select", null, h("option", { value: 0 }, "Masculino"), h("option", { value: 1 }, "Feminino"));
+        s.value = v;
+        s.onchange = () => { obj[k] = Number(s.value); save(); };
+        out.push(fld(label, s));
+        continue;
+      }
+      let ctrl;
+      if (PROGRESS_KEYS.test(k) && v >= 0 && v <= 1) ctrl = slider(obj, k, 0, 1, 0.01, 2, { after: save, label });
+      else {
+        const f = isFloat(obj, k);
+        ctrl = num(obj, k, { float: f, step: f ? 0.01 : 1, after: save });
+        if (f) ctrl.value = String(Number(v.toFixed(3)));
+      }
+      out.push(fld(label, ctrl));
+      continue;
+    }
+    if (typeof v === "string") out.push(fld(label, text(obj, k, { after: save, mono: true, list: ID_KEYS.test(k) ? "dl-items" : opts.list })));
+  }
+  return out;
+}
+function slotGroups(base, onSave) {
+  const groups = [];
+  for (const [k, v] of Object.entries(base)) {
+    if (!v || typeof v !== "object" || !Array.isArray(v.Items)) continue;
+    groups.push(h("div", { class: "fld", style: "margin-bottom:12px" },
+      h("span", null, SLOT_LBL[k] || k), slotsEditor(v.Items, onSave)));
+  }
+  return groups;
+}
+
+// ================= Produção =================
+function stationSummary(base) {
+  const bits = [];
+  const pd = base.PlantData, sc = base.ShroomColonyData;
+  if (pd) bits.push(pd.SeedID ? pd.SeedID + ", " + Math.round(pd.GrowthProgress * 100) + "%" : "vazio");
+  if (sc) bits.push(sc.MushroomSpawnID ? sc.MushroomSpawnID + ", " + Math.round(sc.GrowthProgress * 100) + "%" : "vazio");
+  if (base.CurrentRecipeID) bits.push("receita " + base.CurrentRecipeID);
+  if (base.CurrentIngredientID) bits.push(base.CurrentIngredientID + " no forno");
+  if (base.CurrentMixOperation?.ProductID) bits.push("a misturar " + base.CurrentMixOperation.ProductID);
+  if (Array.isArray(base.DryingOperations) && base.DryingOperations.length) bits.push(base.DryingOperations.length + " a secar");
+  let used = 0, total = 0;
+  for (const v of Object.values(base)) if (v && typeof v === "object" && Array.isArray(v.Items)) {
+    total += v.Items.length;
+    for (const s of v.Items) { try { if (parseJSON(s).ID) used++; } catch (e) {} }
+  }
+  if (total) bits.push(used + "/" + total + " slots");
+  return bits.join(" · ");
+}
+function viewProducao() {
+  const out = [viewHead("Produção", "Vasos, camas de cogumelos, secadores, fornos e estações de mistura, química, embalagem e prensa.")];
+  const found = [];
+  for (const path of propertyPaths()) {
+    const d = safeJ(path);
+    if (!d) continue;
+    const list = (d.Objects || []).filter((o) => STATIONS[o.DataType]);
+    if (list.length) found.push([path, list]);
+  }
+  if (!found.length) return [...out, h("p", { class: "muted" }, "Não há estações de produção colocadas neste save.")];
+  const types = new Set();
+  found.forEach(([, l]) => l.forEach((o) => types.add(o.DataType)));
+  const tSel = h("select", { "aria-label": "Tipo de estação" }, h("option", { value: "all" }, "Todos os tipos"),
+    [...types].sort().map((t) => h("option", { value: t }, STATIONS[t])));
+  tSel.value = S.stationFilter || "all";
+  tSel.onchange = () => { S.stationFilter = tSel.value; render(); };
+  out.push(h("div", { class: "toolbar" }, tSel,
+    h("button", { class: "btn small", onClick: () => {
+      let c = 0;
+      for (const [path, list] of found) for (const o of list) {
+        let base;
+        try { base = parseJSON(o.BaseData); } catch (e) { continue; }
+        const pd = base.PlantData, sc = base.ShroomColonyData;
+        let hit = false;
+        if (pd && pd.SeedID && pd.GrowthProgress < 1) { setFloat(pd, "GrowthProgress", 1); hit = true; }
+        if (sc && sc.MushroomSpawnID && sc.GrowthProgress < 1) { setFloat(sc, "GrowthProgress", 1); hit = true; }
+        if (hit) { o.BaseData = stringify(base, false); mark(path); c++; }
+      }
+      refreshChrome(); render();
+      toast(c ? c + " culturas prontas a colher." : "Não havia nada a crescer.");
+    } }, "Crescimento a 100% em tudo"),
+    h("span", { class: "muted", style: "font-size:13px" }, "As plantas ganham botões durante o crescimento; se a planta era nova, pode não haver nada para colher.")));
+
+  for (const [path, list] of found) {
+    const shown = list.filter((o) => (S.stationFilter || "all") === "all" || o.DataType === S.stationFilter);
+    if (!shown.length) continue;
+    const name = path.split("/").pop().replace(/\.json$/, "");
+    const items = shown.map((o) => {
+      let base;
+      try { base = parseJSON(o.BaseData); } catch (e) { return null; }
+      const save = () => { o.BaseData = stringify(base, false); touch(path); sum.textContent = stationSummary(base); };
+      const sum = h("span", { class: "muted", style: "font-size:13px" }, stationSummary(base));
+      const det = h("details", { class: "store" }, h("summary", null, h("b", null, STATIONS[o.DataType]), sum));
+      let built = false;
+      det.ontoggle = () => {
+        if (!det.open || built) return;
+        built = true;
+        const body = h("div", { style: "padding:2px 18px 16px 30px;display:grid;gap:10px" },
+          slotGroups(base, save),
+          h("div", { class: "grid" }, autoFields(base, save)),
+          base.AppliedAdditives?.length ? h("div", { class: "fld" }, h("span", null, "Aditivos aplicados"), roChips(base.AppliedAdditives)) : null,
+          base.PlantData?.ActiveBuds ? h("small", { class: "muted" }, base.PlantData.ActiveBuds.length + " botões prontos na planta") : null);
+        det.append(body);
+      };
+      return det;
+    }).filter(Boolean);
+    out.push(h("section", { class: "panel flat" },
+      h("header", null, h("h3", null, name), h("span", { class: "tag" }, shown.length + " estações")),
+      h("div", { class: "body" }, items)));
+  }
+  return out;
+}
+
+function collapsibleSlots(label, items, onSave) {
+  const sum = h("span", { class: "tag" }, slotSummary(items));
+  const det = h("details", { class: "store", style: "border:1px solid var(--line);border-radius:8px" },
+    h("summary", null, h("b", null, label), sum));
+  let built = false;
+  det.ontoggle = () => {
+    if (!det.open || built) return;
+    built = true;
+    det.append(slotsEditor(items, () => { sum.textContent = slotSummary(items); onSave(); }));
+  };
+  return det;
+}
+
+// ================= Clientes especiais (0.4.7) =================
+const GROUPS = { businessmen: "Empresários", hippies: "Hippies", partybus: "Party bus", bikers: "Motards", rockband: "Banda rock" };
+function specialCustomersPanel() {
+  const path = "SpecialCustomers.json";
+  const SC = safeJ(path);
+  if (!SC) return null;
+  const save = () => touch(path);
+  const groups = (SC.GroupData || []).map((g) => {
+    const items = g.GroupInventory?.Items;
+    const body = Array.isArray(items) && items.length
+      ? collapsibleSlots("Inventário do grupo", items, save)
+      : h("span", { class: "muted", style: "font-size:13px" }, "sem inventário guardado");
+    return h("tr", null,
+      h("td", { class: "name" }, GROUPS[g.GroupId] || titleCase(g.GroupId)),
+      h("td", null, (() => { const n = num(g, "VisitCount", { min: 0, path }); n.style.width = "90px"; return n; })()),
+      h("td", null, (() => { const n = num(g, "DaySinceLastVisit", { min: 0, path }); n.style.width = "90px"; return n; })()),
+      h("td", null, body));
+  });
+  const cur = h("select", { style: "width:auto" }, h("option", { value: "" }, "ninguém na cidade"),
+    (SC.GroupData || []).map((g) => h("option", { value: g.GroupId }, GROUPS[g.GroupId] || titleCase(g.GroupId))));
+  cur.value = SC.GroupId || "";
+  cur.onchange = () => { SC.GroupId = cur.value; save(); };
+  return h("section", { class: "panel flat" },
+    h("header", null, h("h3", null, "Clientes especiais"), h("span", { class: "tag" }, (SC.GroupData || []).length + " grupos")),
+    h("div", { class: "body" },
+      h("div", { class: "grid", style: "margin-bottom:14px" },
+        fld("Grupo em visita", cur),
+        "Phase" in SC ? fld("Fase", num(SC, "Phase", { min: 0, path })) : null,
+        "DaysLeftInPhase" in SC ? fld("Dias que faltam na fase", num(SC, "DaysLeftInPhase", { min: 0, path })) : null,
+        "RunningBudget" in SC ? fld("Orçamento do grupo", num(SC, "RunningBudget", { float: isFloat(SC, "RunningBudget"), min: 0, path })) : null,
+        "ChanceToAppear" in SC ? fld("Hipótese de aparecerem", slider(SC, "ChanceToAppear", 0, 1, 0.01, 2, { path, label: "Hipótese de aparecerem" })) : null),
+      Array.isArray(SC.DesiredEffects) && SC.DesiredEffects.length
+        ? h("div", { class: "fld", style: "margin-bottom:14px" }, h("span", null, "Efeitos que procuram"), roChips(SC.DesiredEffects)) : null),
+    h("div", { class: "table-wrap" }, h("table", null,
+      h("thead", null, h("tr", null, ["Grupo", "Visitas", "Dias desde a última", "Inventário"].map((t) => h("th", null, t)))),
+      h("tbody", null, groups))));
+}
+
+// ================= Dealers =================
+function viewDealers() {
+  const out = [viewHead("Dealers", "Quem trabalha para ti, quanto dinheiro tem consigo e que clientes atende.")];
+  const models = npcModels();
+  if (!models) return [...out, missing("NPCs.json")];
+  const P = "NPCs.json";
+  const dealers = models.filter((m) => m.kind === "dealer" && m.base.ID !== "carteldealer");
+  if (!dealers.length) return [...out, h("p", { class: "muted" }, "Ainda não tens dealers recrutados.")];
+  const customers = models.filter((m) => m.ad.CustomerData).map((m) => m.base.ID);
+  const assignedTo = new Map();
+  for (const d of dealers) for (const cid of d.base.AssignedCustomerIDs || []) assignedTo.set(cid, d.base.ID);
+
+  for (const d of dealers) {
+    const save = () => { d.saveBase(); touch(P); };
+    const ids = d.base.AssignedCustomerIDs || (d.base.AssignedCustomerIDs = []);
+    const chips = h("div", { class: "fx" });
+    const drawChips = () => chips.replaceChildren(...(ids.length ? ids.map((cid) => h("span", { class: "tag" }, titleCase(cid), " ",
+      h("button", { class: "icon-btn", style: "padding:0 4px", title: "Remover cliente", "aria-label": "Remover " + titleCase(cid), onClick: () => {
+        ids.splice(ids.indexOf(cid), 1); save(); render();
+      } }, "×"))) : [h("span", { class: "muted", style: "font-size:13px" }, "sem clientes atribuídos")]));
+    drawChips();
+    const free = customers.filter((c) => !assignedTo.has(c)).sort();
+    const sel = h("select", { style: "width:auto", "aria-label": "Adicionar cliente a " + titleCase(d.base.ID) },
+      h("option", { value: "" }, free.length ? "Adicionar cliente…" : "Sem clientes livres"), free.map((c) => h("option", { value: c }, titleCase(c))));
+    sel.onchange = () => {
+      const c = sel.value;
+      if (!c) return;
+      for (const other of dealers) {
+        const oi = other.base.AssignedCustomerIDs || [];
+        const at = oi.indexOf(c);
+        if (at >= 0) { oi.splice(at, 1); other.saveBase(); }
+      }
+      ids.push(c);
+      save(); render();
+    };
+    const inv = (d.n.AdditionalDatas || []).find((a) => a.Name === "Inventory");
+    let invNode = null;
+    if (inv) {
+      try {
+        const io = parseJSON(inv.Contents);
+        const pretty = inv.Contents.includes("\n");
+        if (Array.isArray(io.Items)) invNode = collapsibleSlots("Bolsos", io.Items, () => { inv.Contents = stringify(io, pretty); touch(P); });
+      } catch (e) { /* ignora */ }
+    }
+    const over = d.base.OverflowItems?.Items;
+    out.push(h("section", { class: "panel" },
+      h("header", null, h("h3", null, titleCase(d.base.ID)),
+        h("span", { class: "tag" }, ids.length + " clientes"),
+        ids.includes("mick_lubbin") ? h("span", { class: "tag warn", title: "O Mick atende a loja de penhores e desaparece de lá quando anda a fazer entregas" }, "tem o Mick") : null,
+        h("span", { class: "sp" }),
+        "Recruited" in d.base ? check(d.base, "Recruited", "Recrutado", { after: save }) : null),
+      h("div", { class: "body", style: "display:grid;gap:14px" },
+        h("div", { class: "grid" },
+          "Cash" in d.base ? fld("Dinheiro consigo", num(d.base, "Cash", { float: true, min: 0, after: save })) : null,
+          d.ad.Relationship ? fld("Relação", slider(d.ad.Relationship.o, "RelationDelta", 0, 5, 0.1, 1, { after: () => { d.saveAd("Relationship"); touch(P); }, label: "Relação com " + titleCase(d.base.ID) })) : null,
+          Array.isArray(d.base.ActiveContractGUIDs) ? fld("Contratos ativos", h("input", { type: "text", value: d.base.ActiveContractGUIDs.length, readonly: true, disabled: true })) : null),
+        h("div", { class: "fld" }, h("span", null, "Clientes atribuídos"), chips, h("div", { class: "row", style: "margin-top:6px" }, sel)),
+        Array.isArray(over) ? collapsibleSlots("Transbordo", over, save) : null,
+        invNode)));
+  }
+  out.push(h("p", { class: "note" }, "Cada cliente só pode estar num dealer: ao atribuíres, ele sai automaticamente da lista dos outros. Se o Mick Lubbin estiver atribuído a alguém, sai da loja de penhores para fazer negócios."));
+  return out;
+}
+
+// ================= Aparência e roupa (dentro de Jogadores) =================
+function avatarObjectsEditor(arr, save) {
+  const wrap = h("div", { style: "display:grid;gap:8px" });
+  const draw = () => {
+    const rows = arr.map((o, i) => {
+      const colors = (o.Colors || []).map((c) => c && c.Value ? h("label", { class: "check" },
+        h("span", { class: "muted", style: "font-size:12.5px" }, c.PropertyId || "Cor"), colorField(c.Value, save)) : null);
+      return h("div", { class: "row" },
+        (() => { const t = text(o, "Id", { after: save, mono: true }); t.style.width = "200px"; return t; })(),
+        colors,
+        h("button", { class: "icon-btn", title: "Remover", "aria-label": "Remover " + (o.Id || "objeto"), onClick: () => { arr.splice(i, 1); save(); draw(); } }, "×"));
+    });
+    const novo = h("input", { type: "text", class: "mono", placeholder: "id novo, ex. teardrop", style: "width:200px", "aria-label": "Id do objeto novo" });
+    rows.push(h("div", { class: "row" }, novo, h("button", { class: "btn small", onClick: () => {
+      const id = novo.value.trim();
+      if (!id) return;
+      const col = { PropertyId: "MainColor", Value: { r: 1, g: 1, b: 1, a: 1 } };
+      for (const k of ["r", "g", "b", "a"]) setFloat(col.Value, k, 1);
+      arr.push({ Id: id, Colors: [col] });
+      save(); draw();
+    } }, "Adicionar")));
+    wrap.replaceChildren(...rows);
+  };
+  draw();
+  return wrap;
+}
+
+// ================= conversão do formato da aparência (0.4.6 <-> 0.4.7) =================
+const APMAP_KEY = "s1-editor:mapa-avatar";
+const APSNAP_KEY = "s1-editor:aparencia";
+const apFormat = (ap) => (ap && "HairStyleId" in ap ? "novo" : ap && "HairStyle" in ap ? "antigo" : null);
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const lastSeg = (p) => String(p || "").split("/").pop();
+
+function learnedMap() { try { return JSON.parse(localStorage.getItem(APMAP_KEY)) || {}; } catch (e) { return {}; } }
+function learnPaths(ap) {
+  if (apFormat(ap) !== "antigo") return;
+  const m = learnedMap();
+  const add = (p, kind) => { if (p) m[pathToId(p, kind)] = p; };
+  add(ap.HairStyle, "hair"); add(ap.Mouth, "face"); add(ap.FacialHair, "facialhair"); add(ap.FacialDetails, "detail");
+  for (const t of ap.Tattoos || []) add(t, "tattoo");
+  try { localStorage.setItem(APMAP_KEY, JSON.stringify(m)); } catch (e) {}
+}
+function pathToId(p, kind) {
+  if (!p) return "";
+  let s = lastSeg(p);
+  if (kind === "face") s = s.replace(/^Face_(.+)$/, "$1face");
+  else if (kind === "facialhair") s = s.replace(/^FacialHair_/, "");
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+const TATTOO_GROUPS = [["leftarm", "LeftArm"], ["rightarm", "RightArm"], ["leftleg", "LeftLeg"], ["rightleg", "RightLeg"],
+  ["chest", "Chest"], ["back", "Back"], ["stomach", "Stomach"], ["neck", "Neck"], ["face", "Face"], ["head", "Face"]];
+function idToPath(id, kind) {
+  if (!id) return { path: "", sure: true };
+  const known = learnedMap()[id];
+  if (known) return { path: known, sure: true };
+  if (kind === "hair") return { path: "Avatar/Hair/" + cap(id) + "/" + cap(id), sure: false };
+  if (kind === "face") return { path: "Avatar/Layers/Face/Face_" + cap(id.replace(/face$/, "")), sure: false };
+  if (kind === "facialhair") return { path: "Avatar/Layers/Face/FacialHair_" + cap(id), sure: false };
+  if (kind === "detail") return { path: "Avatar/Layers/Face/" + cap(id), sure: false };
+  for (const [pre, folder] of TATTOO_GROUPS) if (id.startsWith(pre) && id.length > pre.length) {
+    return { path: "Avatar/Layers/Tattoos/" + folder + "/" + folder + "_" + cap(id.slice(pre.length)), sure: false };
+  }
+  return { path: "Avatar/Layers/Tattoos/Face/Face_" + cap(id), sure: false };
+}
+function white(a) {
+  const c = {};
+  for (const k of ["r", "g", "b"]) setFloat(c, k, 1);
+  setFloat(c, "a", a == null ? 1 : a);
+  return c;
+}
+function cp(dst, dk, src, sk, fallback) {
+  if (!(sk in src)) { if (fallback !== undefined) setFloat(dst, dk, fallback); return; }
+  const v = src[sk];
+  if (typeof v === "number" && isFloat(src, sk)) setFloat(dst, dk, v);
+  else dst[dk] = v;
+}
+function apToNew(o) {
+  const n = {};
+  cp(n, "Gender", o, "Gender");
+  cp(n, "Weight", o, "Weight", 0.5);
+  n.SkinColor = o.SkinColor || white();
+  n.HairStyleId = pathToId(o.HairStyle, "hair");
+  n.HairColor = o.HairColor || white();
+  n.FaceId = pathToId(o.Mouth, "face");
+  n.FacialHairId = pathToId(o.FacialHair, "facialhair");
+  n.FacialDetailId = pathToId(o.FacialDetails, "detail");
+  cp(n, "FacialDetailIntensity", o, "FacialDetailsIntensity", 1);
+  n.EyeballColor = o.EyeballColor || white();
+  cp(n, "PupilDilation", o, "PupilDilation", 1);
+  cp(n, "UpperEyelidPosition", o, "UpperEyeLidRestingPosition", 0);
+  cp(n, "LowerEyelidPosition", o, "LowerEyeLidRestingPosition", 0);
+  cp(n, "EyebrowScale", o, "EyebrowScale", 1);
+  cp(n, "EyebrowThickness", o, "EyebrowThickness", 1);
+  cp(n, "EyebrowHeight", o, "EyebrowRestingHeight", 0);
+  cp(n, "EyebrowAngle", o, "EyebrowRestingAngle", 0);
+  n.AdditionalAvatarObjects = (o.Tattoos || []).map((t) => ({ Id: pathToId(t, "tattoo"), Colors: [{ PropertyId: "MainColor", Value: white() }] }));
+  return { ap: n, guesses: [], lost: ["roupa vestida (Top, Bottom, Shoes, Headwear, Eyewear e as cores)"] };
+}
+function apToOld(n) {
+  const o = {};
+  const guesses = [];
+  const conv = (id, kind) => { const r = idToPath(id, kind); if (id && !r.sure) guesses.push(id + " → " + r.path); return r.path; };
+  cp(o, "Gender", n, "Gender");
+  cp(o, "Weight", n, "Weight", 0.5);
+  o.SkinColor = n.SkinColor || white();
+  o.HairStyle = conv(n.HairStyleId, "hair");
+  o.HairColor = n.HairColor || white();
+  o.Mouth = conv(n.FaceId, "face");
+  o.FacialHair = conv(n.FacialHairId, "facialhair");
+  o.FacialDetails = conv(n.FacialDetailId, "detail");
+  cp(o, "FacialDetailsIntensity", n, "FacialDetailIntensity", 1);
+  o.EyeballColor = n.EyeballColor || white();
+  cp(o, "UpperEyeLidRestingPosition", n, "UpperEyelidPosition", 0);
+  cp(o, "LowerEyeLidRestingPosition", n, "LowerEyelidPosition", 0);
+  cp(o, "PupilDilation", n, "PupilDilation", 1);
+  cp(o, "EyebrowScale", n, "EyebrowScale", 1);
+  cp(o, "EyebrowThickness", n, "EyebrowThickness", 1);
+  cp(o, "EyebrowRestingHeight", n, "EyebrowHeight", 0);
+  cp(o, "EyebrowRestingAngle", n, "EyebrowAngle", 0);
+  for (const [item, color] of [["Top", "TopColor"], ["Bottom", "BottomColor"], ["Shoes", "ShoesColor"], ["Headwear", "HeadwearColor"], ["Eyewear", "EyewearColor"]]) {
+    o[item] = "";
+    o[color] = white();
+  }
+  o.Tattoos = (n.AdditionalAvatarObjects || []).map((x) => conv(x.Id, "tattoo")).filter(Boolean);
+  return { ap: o, guesses, lost: ["as cores individuais de cada tatuagem"] };
+}
+const snapKey = (dir, fmt) => APSNAP_KEY + ":" + S.name + ":" + dir + ":" + fmt;
+function getSnap(dir, fmt) { try { return localStorage.getItem(snapKey(dir, fmt)); } catch (e) { return null; } }
+function putSnap(dir, fmt, txt) { try { localStorage.setItem(snapKey(dir, fmt), txt); } catch (e) {} }
+
+function convertDialog(dir) {
+  const path = "Players/" + dir + "/Appearance.json";
+  const e = E(path);
+  const ap = J(path);
+  const from = apFormat(ap);
+  if (!from) { toast("Não reconheço o formato desta aparência."); return; }
+  const to = from === "novo" ? "antigo" : "novo";
+  const snap = getSnap(dir, to);
+  const res = from === "novo" ? apToOld(ap) : apToNew(ap);
+  const body = [
+    h("p", { style: "margin:0" }, "Vais passar do formato ", h("b", null, from === "novo" ? "novo (0.4.7)" : "antigo (0.4.6)"),
+      " para o ", h("b", null, to === "novo" ? "novo (0.4.7)" : "antigo (0.4.6)"), "."),
+    snap ? h("p", { class: "note", style: "margin:0" }, "Há uma cópia deste jogador nesse formato, guardada por mim antes da conversão anterior. Vou usá-la, portanto a reposição é exata.")
+      : h("p", { class: "note", style: "margin:0" }, "Não tenho nenhuma cópia neste formato, por isso vou traduzir campo a campo."),
+    !snap && res.guesses.length ? h("div", { class: "fld" }, h("span", null, "Valores que tive de adivinhar"),
+      h("div", { style: "display:grid;gap:2px" }, res.guesses.map((g) => h("span", { class: "mono", style: "font-size:12px" }, g)))) : null,
+    !snap && res.lost.length ? h("div", { class: "fld" }, h("span", null, "O que se perde"), h("div", { style: "display:grid;gap:2px" }, res.lost.map((l) => h("small", { class: "muted" }, l)))) : null,
+    h("small", { class: "muted" }, "A tabela de correspondência entre ids e caminhos foi deduzida dos nomes, não é oficial. O caminho seguro continua a ser guardares o .zip original antes de experimentares a beta."),
+  ];
+  const m = modal("Converter aparência", body, [
+    h("button", { class: "btn", onClick: () => m.remove() }, "Cancelar"),
+    snap ? h("button", { class: "btn", onClick: () => { m.remove(); applyConvert(dir, res.ap, from, false); } }, "Converter sem usar a cópia") : null,
+    h("button", { class: "btn primary", onClick: () => { m.remove(); applyConvert(dir, snap ? parseJSON(snap) : res.ap, from, !!snap); } }, snap ? "Repor a partir da cópia" : "Converter"),
+  ]);
+}
+function applyConvert(dir, data, fromFmt, usedSnap) {
+  const path = "Players/" + dir + "/Appearance.json";
+  const e = E(path);
+  putSnap(dir, fromFmt, stringify(e.data || parseJSON(e.text), false));
+  e.data = data;
+  e.dirty = true;
+  refreshChrome();
+  render();
+  toast(usedSnap ? "Aparência reposta a partir da cópia guardada." : "Aparência convertida.");
+}
+
+function appearancePanels(dir) {
+  const out = [];
+  const aPath = "Players/" + dir + "/Appearance.json";
+  const ap = safeJ(aPath);
+  if (ap) {
+    const strings = new Set();
+    for (const d of playerDirs()) {
+      const x = safeJ("Players/" + d + "/Appearance.json");
+      if (!x) continue;
+      for (const v of Object.values(x)) if (typeof v === "string" && v) strings.add(v);
+    }
+    const dl = $("dl-avatar");
+    dl.replaceChildren(...[...strings].sort().map((v) => h("option", { value: v })));
+    learnPaths(ap);
+    const fmt = apFormat(ap);
+    const head = fmt ? h("div", { class: "row" },
+      h("span", { class: "tag" + (fmt === "novo" ? " ok" : "") }, fmt === "novo" ? "Formato novo (0.4.7)" : "Formato antigo (0.4.6)"),
+      h("button", { class: "btn small", onClick: () => convertDialog(dir) },
+        fmt === "novo" ? "Converter para o formato antigo" : "Converter para o formato novo")) : null;
+    out.push(panel("Aparência", [
+      h("div", { class: "grid" }, autoFields(ap, () => touch(aPath), { list: "dl-avatar" })),
+      Array.isArray(ap.Tattoos) ? h("div", { class: "fld", style: "margin-top:14px" }, h("span", null, "Tatuagens"), roChips(ap.Tattoos)) : null,
+      Array.isArray(ap.AdditionalAvatarObjects) ? h("div", { class: "fld", style: "margin-top:14px" },
+        h("span", null, "Tatuagens e extras"), avatarObjectsEditor(ap.AdditionalAvatarObjects, () => touch(aPath))) : null,
+      h("p", { class: "note" }, ap.HairStyleId != null
+        ? "Formato novo da versão 0.4.7: o cabelo, o rosto e a barba são ids curtos (afro, goatee), e as tatuagens e extras vivem na lista em baixo."
+        : "Formato antigo: os caminhos (Avatar/Layers/…) têm de existir no jogo; as sugestões mostram os que já aparecem neste save."),
+    ], { extra: head }));
+  }
+  const cPath = "Players/" + dir + "/Clothing.json";
+  const cl = safeJ(cPath);
+  if (cl && Array.isArray(cl.Items)) {
+    out.push(panel("Roupa vestida", [slotsEditor(cl.Items, () => touch(cPath)),
+      h("p", { class: "note" }, "A coluna do meio é o índice de cor da peça, tal como o jogo o guarda.")]));
+  }
+  return out;
+}
+
+// ================= Procurar =================
+function viewProcurar() {
+  const out = [viewHead("Procurar", "Procura texto em todos os ficheiros do save, incluindo o JSON aninhado dentro de strings.")];
+  const inp = h("input", { type: "search", class: "grow", placeholder: "ID de item, nome, GUID, número…", value: S.search || "", "aria-label": "Texto a procurar" });
+  const results = h("div");
+  const runSearch = () => {
+    const q = inp.value.trim();
+    S.search = q;
+    if (q.length < 2) { results.replaceChildren(h("p", { class: "muted" }, "Escreve pelo menos dois caracteres.")); return; }
+    const needle = q.toLowerCase();
+    const blocks = [];
+    let total = 0;
+    for (const path of jsonPaths()) {
+      const e = E(path);
+      const txt = outText(e);
+      const low = txt.toLowerCase();
+      const hits = [];
+      let at = low.indexOf(needle);
+      while (at >= 0 && hits.length < 6) { hits.push(at); at = low.indexOf(needle, at + needle.length); }
+      if (!hits.length) continue;
+      let count = hits.length;
+      if (count === 6) { let more = low.indexOf(needle, hits[5] + needle.length); while (more >= 0 && count < 500) { count++; more = low.indexOf(needle, more + needle.length); } }
+      total += count;
+      blocks.push(h("div", { class: "diff-file" },
+        h("h4", null, path, h("span", { class: "tag" }, count === 500 ? "500+" : count), h("span", { style: "flex:1" }),
+          h("button", { class: "btn small ghost", onClick: () => { S.rawPath = path; S.rawSelect = [hits[0], hits[0] + q.length]; go("ficheiros"); } }, "Abrir no editor")),
+        hits.map((i) => h("div", { class: "diff-row", style: "grid-template-columns:1fr" },
+          h("span", { class: "path" },
+            "…" + txt.slice(Math.max(0, i - 70), i).replace(/\s+/g, " "),
+            h("mark", null, txt.substr(i, q.length)),
+            txt.slice(i + q.length, i + q.length + 70).replace(/\s+/g, " ") + "…")))));
+    }
+    results.replaceChildren(
+      h("p", { class: "muted" }, total ? total + " ocorrências em " + blocks.length + " ficheiros" : "Nada encontrado."),
+      blocks.length ? h("section", { class: "panel flat" }, h("div", { class: "body" }, blocks)) : null);
+  };
+  inp.onchange = runSearch;
+  const btn = h("button", { class: "btn small primary", onClick: runSearch }, "Procurar");
+  out.push(h("div", { class: "toolbar" }, inp, btn), results);
+  queueMicrotask(() => { inp.focus(); if (S.search) runSearch(); });
+  return out;
+}
+
+// ================= Ferramentas =================
+function eachObjectBase(fn) {
+  let changed = 0;
+  for (const p of propertyPaths()) {
+    const d = safeJ(p);
+    if (!d) continue;
+    let fileChanged = false;
+    for (const o of d.Objects || []) {
+      let base;
+      try { base = parseJSON(o.BaseData); } catch (e) { continue; }
+      if (fn(base, o, p)) { o.BaseData = stringify(base, false); fileChanged = true; changed++; }
+    }
+    if (fileChanged) mark(p);
+  }
+  return changed;
+}
+function eachEmployee(fn) {
+  let changed = 0;
+  for (const p of propertyPaths()) {
+    const d = safeJ(p);
+    if (!d) continue;
+    for (const em of d.Employees || []) {
+      let b;
+      try { b = parseJSON(em.BaseData); } catch (e) { continue; }
+      if (fn(b)) { em.BaseData = stringify(b, false); mark(p); changed++; }
+    }
+  }
+  return changed;
+}
+function addHostCash(amount) {
+  const dir = playerDirs()[0];
+  const path = "Players/" + dir + "/Inventory.json";
+  const inv = safeJ(path);
+  if (!inv) return false;
+  const idx = inv.Items.findIndex((s) => { try { return parseJSON(s).DataType === "CashData"; } catch (e) { return false; } });
+  if (idx < 0) return false;
+  const o = parseJSON(inv.Items[idx]);
+  setFloat(o, "CashBalance", Math.max(0, (Number(o.CashBalance) || 0) + amount));
+  inv.Items[idx] = stringify(o, false);
+  mark(path);
+  return true;
+}
+
+const TOOLS = [
+  ["Dinheiro", [
+    { t: "Depositar no banco", d: "Soma o valor ao saldo bancário.", input: 100000, run: (v) => {
+      const m = safeJ("Money.json"); if (!m) return "Este save não tem Money.json.";
+      setFloat(m, "OnlineBalance", (Number(m.OnlineBalance) || 0) + v); mark("Money.json");
+      return fmtMoney(v) + " depositados.";
+    } },
+    { t: "Dar dinheiro em mão ao anfitrião", d: "Soma dinheiro físico ao inventário do Player_0.", input: 10000, run: (v) =>
+      addHostCash(v) ? fmtMoney(v) + " adicionados à carteira." : "Não encontrei a carteira do anfitrião." },
+    { t: "Libertar o limite do multibanco", d: "Põe os depósitos desta semana a zero.", run: () => {
+      const m = safeJ("Money.json"); if (!m) return "Este save não tem Money.json.";
+      setFloat(m, "WeeklyDepositSum", 0); mark("Money.json"); return "Limite semanal libertado.";
+    } },
+    { t: "Recolher o dinheiro dos dealers", d: "Tira o dinheiro que os dealers têm consigo e passa-o para a carteira do anfitrião.", run: () => {
+      const N = safeJ("NPCs.json"); if (!N) return "Este save não tem NPCs.json.";
+      let total = 0;
+      for (const n of N.NPCs || []) {
+        let b; try { b = parseJSON(n.BaseData); } catch (e) { continue; }
+        if (b.DataType === "DealerData" && Number(b.Cash) > 0) { total += Number(b.Cash); setFloat(b, "Cash", 0); n.BaseData = stringify(b, false); }
+      }
+      if (!total) return "Os dealers não tinham dinheiro.";
+      mark("NPCs.json");
+      addHostCash(total);
+      return fmtMoney(total) + " recolhidos dos dealers.";
+    } },
+    { t: "Terminar lavagens de dinheiro", d: "Marca todas as lavagens em curso como tendo passado um dia de jogo inteiro.", run: () => {
+      let c = 0;
+      for (const p of propertyPaths()) {
+        const d = safeJ(p);
+        for (const op of d?.LaunderingOperations || []) if (op.MinutesSinceStarted < 1440) { op.MinutesSinceStarted = 1440; mark(p); c++; }
+      }
+      return c ? c + " lavagens prontas." : "Não havia lavagens em curso.";
+    } },
+  ]],
+  ["Progressão", [
+    { t: "Rank máximo", d: "Kingpin V, com todas as regiões desbloqueadas.", run: () => {
+      const r = safeJ("Rank.json"); if (!r) return "Este save não tem Rank.json.";
+      r.Rank = RANKS.length - 1; r.Tier = 5; r.UnlockedRegions = REGIONS.map((_, i) => i); mark("Rank.json");
+      return "Agora és Kingpin V.";
+    } },
+    { t: "Desbloquear todas as regiões", d: "Abre todos os bairros de Hyland Point sem mexer no rank.", run: () => {
+      const r = safeJ("Rank.json"); if (!r) return "Este save não tem Rank.json.";
+      r.UnlockedRegions = REGIONS.map((_, i) => i); mark("Rank.json"); return "Regiões desbloqueadas.";
+    } },
+    { t: "Comprar todos os imóveis e negócios", d: "Marca todos como teus, incluindo a mansão. Pode saltar missões ligadas a compras.", run: () => {
+      let c = 0;
+      for (const p of propertyPaths()) { const d = safeJ(p); if (d && d.IsOwned === false) { d.IsOwned = true; mark(p); c++; } }
+      return c ? c + " imóveis passaram a ser teus." : "Já eram todos teus.";
+    } },
+  ]],
+  ["Pessoas", [
+    { t: "Todos os contactos no máximo", d: "Desbloqueia todos os contactos e põe a relação em 5.", run: () => {
+      const ms = npcModels(); if (!ms) return "Este save não tem NPCs.json.";
+      let c = 0;
+      for (const m of ms) { const r = m.ad.Relationship; if (!r) continue; r.o.Unlocked = true; setFloat(r.o, "RelationDelta", 5); m.saveAd("Relationship"); c++; }
+      mark("NPCs.json"); return c + " contactos no máximo.";
+    } },
+    { t: "Clientes totalmente dependentes", d: "Põe a dependência de todos os clientes em 1.", run: () => {
+      const ms = npcModels(); if (!ms) return "Este save não tem NPCs.json.";
+      let c = 0;
+      for (const m of ms) { const x = m.ad.CustomerData; if (!x) continue; setFloat(x.o, "Dependence", 1); m.saveAd("CustomerData"); c++; }
+      mark("NPCs.json"); return c + " clientes atualizados.";
+    } },
+    { t: "Ressuscitar toda a gente", d: "Traz de volta qualquer NPC morto, com a vida cheia.", run: () => {
+      const ms = npcModels(); if (!ms) return "Este save não tem NPCs.json.";
+      let c = 0; for (const m of ms) if (reviveModel(m)) c++;
+      if (c) mark("NPCs.json");
+      return c ? c + " NPCs ressuscitados." : "Ninguém estava morto.";
+    } },
+    { t: "Pagar os empregados hoje", d: "Marca o salário de hoje como pago para todos os empregados.", run: () => {
+      const c = eachEmployee((b) => { if (b.PaidForToday === false) { b.PaidForToday = true; return true; } return false; });
+      return c ? c + " empregados pagos." : "Já estavam todos pagos.";
+    } },
+  ]],
+  ["Produção e mundo", [
+    { t: "Cogumelos prontos a colher", d: "Põe o crescimento de todas as camas de cogumelos com colónia em 100%.", run: () => {
+      const c = eachObjectBase((b) => {
+        const col = b.ShroomColonyData;
+        if (b.DataType !== "MushroomBedData" || !col || !col.MushroomSpawnID || col.GrowthProgress >= 1) return false;
+        setFloat(col, "GrowthProgress", 1); return true;
+      });
+      return c ? c + " camas de cogumelos prontas." : "Não havia cogumelos a crescer.";
+    } },
+    { t: "Limpar o lixo do mundo", d: "Remove todo o lixo espalhado pelo mapa.", run: () => {
+      const t = safeJ("Trash.json"); if (!t) return "Este save não tem Trash.json.";
+      const n = (t.Items || []).length;
+      t.Items = [];
+      for (const g of t.Generators || []) if (Array.isArray(g.GeneratedItems)) g.GeneratedItems = [];
+      mark("Trash.json"); return n + " peças de lixo removidas.";
+    } },
+    { t: "Expulsar o cartel", d: "Põe a influência do cartel a 0 em todas as regiões.", run: () => {
+      const c = safeJ("Cartel.json"); if (!c) return "Este save não tem Cartel.json.";
+      for (const r of c.RegionInfluence || []) setFloat(r, "Influence", 0);
+      mark("Cartel.json"); return "Influência do cartel a zero.";
+    } },
+    { t: "Todos os produtos a 2x o preço", d: "Duplica o preço pedido de cada produto descoberto.", run: () => {
+      const P = safeJ("Products.json"); if (!P) return "Este save não tem Products.json.";
+      for (const e of P.ProductPrices || []) e.Int = Math.max(1, Math.round(e.Int * 2));
+      mark("Products.json"); return "Preços duplicados.";
+    } },
+  ]],
+];
+function viewFerramentas() {
+  const out = [viewHead("Ferramentas", "Ações rápidas sobre o save inteiro. Cada uma aparece em Alterações, e podes repor tudo antes de descarregar.")];
+  for (const [group, tools] of TOOLS) {
+    out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, group)),
+      h("div", { class: "body tools" }, tools.map((tool) => {
+        const inp = tool.input != null ? h("input", { type: "number", value: tool.input, min: 0, "aria-label": tool.t }) : null;
+        const btn = h("button", { class: "btn small primary", onClick: () => {
+          const v = inp ? Math.max(0, Number(inp.value) || 0) : undefined;
+          try {
+            const msg = tool.run(v);
+            refreshChrome();
+            toast(msg);
+          } catch (err) { console.error(err); toast("Falhou: " + err.message); }
+        } }, "Aplicar");
+        return h("div", { class: "tool" }, h("div", null, h("b", null, tool.t), h("p", null, tool.d)), h("div", { class: "act" }, inp, btn));
+      }))));
+  }
+  return out;
+}
+
+// ================= Variáveis =================
+function varsTable(path) {
+  const V = safeJ(path);
+  if (!V || !Array.isArray(V.Variables)) return missing(path);
+  const body = h("tbody");
+  const draw = () => {
+    body.replaceChildren(...V.Variables.map((x, i) => h("tr", null,
+      h("td", null, h("span", { class: "mono" }, x.Name)),
+      h("td", null, /^(True|False)$/.test(x.Value)
+        ? (() => { const s = h("select", { style: "width:auto" }, h("option", { value: "True" }, "True"), h("option", { value: "False" }, "False")); s.value = x.Value; s.onchange = () => { x.Value = s.value; touch(path); }; return s; })()
+        : text(x, "Value", { path, mono: true })),
+      h("td", { style: "width:40px" }, h("button", { class: "icon-btn", title: "Apagar variável", "aria-label": "Apagar " + x.Name, onClick: () => { V.Variables.splice(i, 1); touch(path); draw(); } }, "×")))));
+  };
+  draw();
+  const nName = h("input", { type: "text", class: "mono grow", placeholder: "Nome", "aria-label": "Nome da nova variável" });
+  const nVal = h("input", { type: "text", class: "mono", placeholder: "Valor", "aria-label": "Valor da nova variável" });
+  const add = h("button", { class: "btn small", onClick: () => {
+    const name = nName.value.trim();
+    if (!name) return;
+    const ex = V.Variables.find((x) => x.Name === name);
+    if (ex) ex.Value = nVal.value;
+    else V.Variables.push({ DataType: "VariableData", DataVersion: 0, GameVersion: S.gv, Name: name, Value: nVal.value });
+    nName.value = ""; nVal.value = "";
+    touch(path); draw();
+  } }, "Adicionar ou atualizar");
+  return [h("div", { class: "table-wrap" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Nome"), h("th", null, "Valor"), h("th"))), body)),
+    h("div", { class: "toolbar", style: "padding:12px 14px 0;margin:0" }, nName, nVal, add)];
+}
+function viewVariaveis() {
+  const out = [viewHead("Variáveis", "Contadores e flags internas do jogo.")];
+  out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, "Do mundo")), h("div", { class: "body", style: "padding-bottom:12px" }, varsTable("Variables.json"))));
+  const dirs = playerDirs();
+  if (dirs.length) {
+    if (!dirs.includes(S.player)) S.player = dirs[0];
+    const pick = dirs.length > 1 ? h("div", { class: "row" }, dirs.map((d) => h("button", { class: "btn small" + (d === S.player ? " primary" : ""), onClick: () => { S.player = d; render(); } }, playerLabel(d)))) : null;
+    out.push(h("section", { class: "panel flat" }, h("header", null, h("h3", null, "Do jogador"), h("span", { class: "sp" }), pick),
+      h("div", { class: "body", style: "padding-bottom:12px" }, varsTable("Players/" + S.player + "/Variables.json"))));
+  }
+  return out;
+}
+
+// ================= Ficheiros =================
+function viewFicheiros() {
+  const out = [viewHead("Ficheiros", "Edição direta do JSON, para o que não tem ecrã próprio. O texto é validado antes de ser aplicado.")];
+  const paths = jsonPaths();
+  if (!S.rawPath || !S.entries.has(S.rawPath)) S.rawPath = paths.includes("Game.json") ? "Game.json" : paths[0];
+  const e = E(S.rawPath);
+  const list = h("section", { class: "panel flat", style: "margin:0" }, h("div", { class: "file-list" }, paths.map((p) => {
+    const en = E(p);
+    return h("button", { "aria-current": p === S.rawPath ? "true" : "false", onClick: () => { S.rawPath = p; render(); } },
+      h("span", null, en.dirty ? [h("span", { class: "dot", title: "Alterado" }), " "] : null, p), h("span", { class: "sz" }, fmtSize(en.text.length)));
+  })));
+  const ta = h("textarea", { class: "raw", spellcheck: "false", "aria-label": "Conteúdo de " + S.rawPath });
+  ta.value = outText(e);
+  const err = h("span", { class: "err", hidden: true });
+  const apply = h("button", { class: "btn primary small", onClick: () => {
+    try {
+      e.data = parseJSON(ta.value);
+      e.text = ta.value;
+      e.pretty = ta.value.slice(0, 400).includes("\n");
+      e.dirty = true;
+      err.hidden = true;
+      buildCatalog(); refreshChrome(); renderRail(); render();
+      toast("Aplicado a " + S.rawPath + ".");
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  } }, "Aplicar");
+  const revert = h("button", { class: "btn small", onClick: () => { ta.value = outText(e); err.hidden = true; } }, "Descartar edição");
+  const restore = e.dirty ? h("button", { class: "btn small danger", onClick: () => { e.text = e.orig; e.data = null; e.dirty = false; buildCatalog(); refreshChrome(); render(); toast("Ficheiro reposto."); } }, "Repor original") : null;
+  if (S.rawSelect) {
+    const [a, b] = S.rawSelect;
+    S.rawSelect = null;
+    queueMicrotask(() => {
+      ta.focus();
+      ta.setSelectionRange(a, b);
+      const before = ta.value.slice(0, a).split("\n").length;
+      ta.scrollTop = Math.max(0, (before - 6) * 17);
+    });
+  }
+  out.push(h("div", { class: "files" }, list,
+    h("section", { class: "panel flat", style: "margin:0" }, h("header", null, h("span", { class: "mono" }, S.rawPath), err, h("span", { class: "sp" }), revert, restore, apply), ta)));
+  return out;
+}
+
+// ================= Alterações =================
+function shortVal(v) {
+  if (v === undefined) return "(não existia)";
+  if (typeof v === "string") return v.length > 90 ? JSON.stringify(v.slice(0, 90)) + "…" : JSON.stringify(v);
+  if (Array.isArray(v)) return v.length + " elementos";
+  if (v && typeof v === "object") { const s = stringify(v, false); return s.length > 90 ? s.slice(0, 90) + "…" : s; }
+  return String(v);
+}
+function segLabel(parent, k) {
+  const el = parent[k];
+  if (Array.isArray(parent) && el && typeof el === "object") {
+    const tag = el.ID || el.Name || el.String || el.Title || el.PropertyCode || el.VehicleCode;
+    if (tag) return "[" + tag + "]";
+  }
+  if (Array.isArray(parent) && el && typeof el.BaseData === "string") {
+    const m = el.BaseData.match(/"ID"\s*:\s*"([^"]+)"/);
+    if (m) return "[" + m[1] + "]";
+  }
+  if (Array.isArray(parent) && typeof el === "string" && el[0] === "{") {
+    const m = el.match(/"ID"\s*:\s*"([^"]+)"/);
+    if (m) return "[" + m[1] + "]";
+  }
+  return Array.isArray(parent) ? "[" + k + "]" : "." + k;
+}
+function diffValues(a, b, path, out, limit) {
+  if (out.length >= limit || a === b) return;
+  if (typeof a === "string" && typeof b === "string" && a[0] === "{" && b[0] === "{") {
+    try { return diffValues(parseJSON(a), parseJSON(b), path, out, limit); } catch (e) { /* segue */ }
+  }
+  if (a && b && typeof a === "object" && typeof b === "object" && Array.isArray(a) === Array.isArray(b)) {
+    if (Array.isArray(a) && a.length !== b.length && typeof a[0] !== "string") { out.push({ path, a, b }); return; }
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    for (const k of keys) {
+      diffValues(a[k], b[k], path + segLabel(b[k] !== undefined ? b : a, k), out, limit);
+      if (out.length >= limit) return;
+    }
+    return;
+  }
+  if (typeof a === "number" && typeof b === "number" && a === b) return;
+  out.push({ path, a, b });
+}
+function viewAlteracoes() {
+  const dirty = [...S.entries.entries()].filter(([, e]) => e.dirty).sort((x, y) => x[0].localeCompare(y[0]));
+  const out = [viewHead("Alterações", "Tudo o que vai ser diferente do save original quando descarregares.",
+    dirty.length ? h("div", { class: "row" }, h("button", { class: "btn small danger", id: "resetAll" }, "Repor tudo"), h("button", { class: "btn small primary", onClick: exportZip }, "Descarregar para importar")) : null)];
+  if (!dirty.length) return [...out, panel(null, h("p", { class: "muted", style: "margin:0" }, "Ainda não mudaste nada. O save está igual ao original."))];
+  const files = dirty.map(([p, e]) => {
+    const rows = [];
+    let failed = false;
+    try { diffValues(parseJSON(e.orig), e.data || parseJSON(e.text), "", rows, 200); } catch (err) { failed = true; }
+    return h("div", { class: "diff-file" },
+      h("h4", null, p, h("span", { class: "tag" }, failed ? "?" : rows.length >= 200 ? "200+" : rows.length),
+        h("span", { style: "flex:1" }),
+        h("button", { class: "btn small ghost danger", onClick: () => { e.text = e.orig; e.data = null; e.dirty = false; buildCatalog(); refreshChrome(); render(); toast(p + " reposto."); } }, "Repor")),
+      failed ? h("div", { class: "diff-row" }, h("span", { class: "err" }, "Não foi possível comparar este ficheiro.")) :
+        rows.length ? rows.map((r) => h("div", { class: "diff-row" }, h("span", { class: "path" }, r.path.replace(/\.AdditionalDatas\[(\w+)\]\.Contents/g, ".$1").replace(/\.(BaseData|Contents)(?=[.\[]|$)/g, "").replace(/^\./, "") || "(raiz)"), h("span", { class: "from" }, shortVal(r.a)), h("span", { class: "to" }, shortVal(r.b)))) :
+          h("div", { class: "diff-row" }, h("span", { class: "muted" }, "Só mudou a formatação dos números, os valores são iguais.")));
+  });
+  out.push(h("section", { class: "panel flat" }, h("div", { class: "body" }, files)));
+  queueMicrotask(() => {
+    const b = $("resetAll");
+    if (!b) return;
+    let armed = null;
+    b.onclick = () => {
+      if (!armed) { b.textContent = "Clica outra vez para confirmar"; armed = setTimeout(() => { armed = null; b.textContent = "Repor tudo"; }, 3500); return; }
+      clearTimeout(armed);
+      for (const e of S.entries.values()) if (!e.bytes) { e.text = e.orig; e.data = null; e.dirty = false; }
+      buildCatalog(); refreshChrome(); renderRail(); render();
+      toast("Tudo reposto como no original.");
+    };
+  });
+  return out;
+}
+
+const VIEWS = {
+  resumo: viewResumo, jogadores: viewJogadores, contactos: viewContactos, produtos: viewProdutos,
+  imoveis: viewImoveis, producao: viewProducao, dealers: viewDealers, veiculos: viewVeiculos,
+  missoes: viewMissoes, ferramentas: viewFerramentas, procurar: viewProcurar,
+  variaveis: viewVariaveis, ficheiros: viewFicheiros, alteracoes: viewAlteracoes,
+};
+
+// ================= eventos =================
+$("pickZip").onclick = () => $("zipInput").click();
+$("pickDir").onclick = () => $("dirInput").click();
+$("zipInput").onchange = (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  $("loadErr").hidden = true;
+  if (f) openZip(f).catch(showLoadError);
+};
+$("dirInput").onchange = (ev) => {
+  const files = [...ev.target.files];
+  ev.target.value = "";
+  $("loadErr").hidden = true;
+  if (files.length) openFromList(files.map((file) => ({ path: file.webkitRelativePath || file.name, file }))).catch(showLoadError);
+};
+const drop = $("drop");
+["dragenter", "dragover"].forEach((t) => document.addEventListener(t, (ev) => { ev.preventDefault(); if (!$("empty").hidden) drop.classList.add("over"); }));
+document.addEventListener("dragleave", (ev) => { if (!ev.relatedTarget) drop.classList.remove("over"); });
+document.addEventListener("drop", async (ev) => {
+  ev.preventDefault();
+  drop.classList.remove("over");
+  if ($("empty").hidden) return;
+  $("loadErr").hidden = true;
+  try {
+    const entries = [...(ev.dataTransfer.items || [])].map((it) => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+    const dirs = entries.filter((en) => en.isDirectory);
+    if (dirs.length) {
+      const list = [];
+      for (const d of dirs) await walkEntry(d, "", list);
+      await openFromList(list);
+      return;
+    }
+    const f = [...ev.dataTransfer.files].find((x) => /\.zip$/i.test(x.name));
+    if (f) await openZip(f);
+    else throw new Error("Larga o .zip exportado pelo jogo ou uma pasta SaveGame_N.");
+  } catch (err) { showLoadError(err); }
+});
+function walkEntry(entry, prefix, list) {
+  return new Promise((resolve, reject) => {
+    if (entry.isFile) { entry.file((file) => { list.push({ path: prefix + entry.name, file }); resolve(); }, reject); return; }
+    const reader = entry.createReader();
+    const all = [];
+    const readBatch = () => reader.readEntries(async (batch) => {
+      if (!batch.length) {
+        try { for (const c of all) await walkEntry(c, prefix + entry.name + "/", list); resolve(); } catch (e) { reject(e); }
+        return;
+      }
+      all.push(...batch);
+      readBatch();
+    }, reject);
+    readBatch();
+  });
+}
+$("exportBtn").onclick = exportZip;
+$("pending").onclick = () => go("alteracoes");
+$("closeBtn").onclick = () => {
+  $("editor").hidden = true;
+  $("empty").hidden = false;
+  S.entries = new Map();
+  S.lastDirty = undefined;
+  $("loadErr").hidden = true;
+};
+const hud = $("hud");
+const setTop = () => {
+  const sticky = getComputedStyle(hud).position === "sticky";
+  document.documentElement.style.setProperty("--top", (sticky ? hud.offsetHeight : 0) + "px");
+};
+new ResizeObserver(setTop).observe(hud);
+window.addEventListener("resize", setTop);
+
+</script>
+</body>
+</html>
